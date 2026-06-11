@@ -1,0 +1,14 @@
+{
+  "name": "fd-financial-dashboard",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "nodemon backend/server/index.js",
+    "dev:client": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "node backend/server/index.js"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
