@@ -44,8 +44,8 @@ export default function FinancialRadarChart() {
       r: {
         min: 0, max: 100,
         ticks: { display: false },
-        grid:       { color: 'rgba(255,255,255,0.06)' },
-        angleLines: { color: 'rgba(255,255,255,0.06)' },
+        grid:       { color: 'rgba(0,0,0,0.08)' },
+        angleLines: { color: 'rgba(0,0,0,0.08)' },
         pointLabels: { color: '#94a3b8', font: { size: 10 } },
       },
     },

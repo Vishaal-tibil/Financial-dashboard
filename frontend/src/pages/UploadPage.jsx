@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext'
 const STAGE_PCT = { uploading: 15, processing: 35, computing: 65, generating: 85, ready: 100 }
 
 export default function UploadPage() {
-  const { navigate, loadData } = useApp()
+  const { navigate, loadData, isDataReady, goBack } = useApp()
   const [dragOver, setDragOver]     = useState(false)
   const [uploading, setUploading]   = useState(false)
   const [stage, setStage]           = useState('')
@@ -98,6 +98,20 @@ export default function UploadPage() {
 
   return (
     <div className="upload-page">
+      {/* Back button — shown when navigated from dashboard */}
+      {isDataReady && (
+        <button
+          onClick={() => navigate('overview')}
+          style={{
+            position: 'absolute', top: 20, left: 20,
+            background: 'none', border: 'none', color: 'var(--accent)',
+            cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5,
+          }}
+        >
+          ← Back to Dashboard
+        </button>
+      )}
+
       {/* Logo */}
       <div className="upload-logo">
         <div className="upload-logo-icon">F</div>

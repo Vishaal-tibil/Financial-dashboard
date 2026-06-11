@@ -1,16 +1,16 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 
 const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
   const [currentPage, setCurrentPage]           = useState('upload')
   const [navHistory, setNavHistory]             = useState([])
-  const [companies, setCompanies]               = useState([])   // KPI summary per company
-  const [metrics, setMetrics]                   = useState({})   // time-series per company
-  const [meta, setMeta]                         = useState(null) // upload metadata
-  const [primaryCompany, setPrimaryCompany]     = useState(null) // the company being analysed
-  const [selectedCompanies, setSelectedCompanies] = useState([]) // comparison companies
-  const [selectedYears, setSelectedYears]       = useState(5)    // "Last N years" filter
+  const [companies, setCompanies]               = useState([])
+  const [metrics, setMetrics]                   = useState({})
+  const [meta, setMeta]                         = useState(null)
+  const [primaryCompany, setPrimaryCompany]     = useState(null)
+  const [selectedCompanies, setSelectedCompanies] = useState([])
+  const [selectedYears, setSelectedYears]       = useState(5)
   const [activeSection, setActiveSection]       = useState('financial-benchmarking')
   const [isDataReady, setIsDataReady]           = useState(false)
   const [aiInsights, setAiInsights]             = useState(null)
@@ -49,10 +49,25 @@ export function AppProvider({ children }) {
         setPrimaryCompany(c[0].name)
         setSelectedCompanies(c.slice(1).map(co => co.name))
       }
+      return true
     } catch (e) {
       console.error('loadData failed:', e)
+      return false
     }
   }, [])
+
+  // On mount: check if backend has data already, skip upload page if so
+  useEffect(() => {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(async d => {
+        if (d.ready) {
+          await loadData()
+          setCurrentPage('overview')
+        }
+      })
+      .catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AppContext.Provider value={{

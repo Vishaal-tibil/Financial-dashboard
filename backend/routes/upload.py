@@ -1,6 +1,8 @@
 import asyncio
 import json
 import sys
+import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -20,6 +22,24 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+def _run_extract_thread(dest: Path, data_dir: Path, filename: str,
+                         queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
+    """Runs extract.py synchronously in a background thread (Windows-safe)."""
+    proc = subprocess.Popen(
+        [sys.executable, str(SCRIPT), str(dest), str(data_dir), filename],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    for raw in proc.stdout:
+        line = raw.strip()
+        if line:
+            asyncio.run_coroutine_threadsafe(queue.put(("line", line)), loop)
+    proc.wait()
+    stderr_text = proc.stderr.read()
+    asyncio.run_coroutine_threadsafe(queue.put(("done", proc.returncode, stderr_text)), loop)
+
+
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     if not file.filename.lower().endswith((".xlsx", ".xls")):
@@ -34,28 +54,30 @@ async def upload_file(file: UploadFile = File(...)):
     async def stream():
         yield _sse("progress", {"stage": "uploading", "message": "File received — starting parse…", "pct": 10})
 
-        proc = await asyncio.create_subprocess_exec(
-            sys.executable, str(SCRIPT), str(dest), str(DATA_DIR), file.filename,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        loop  = asyncio.get_event_loop()
+        queue = asyncio.Queue()
+
+        t = threading.Thread(
+            target=_run_extract_thread,
+            args=(dest, DATA_DIR, file.filename, queue, loop),
+            daemon=True,
         )
+        t.start()
 
-        async for raw in proc.stdout:
-            line = raw.decode().strip()
-            if not line:
-                continue
-            try:
-                yield _sse("progress", json.loads(line))
-            except json.JSONDecodeError:
-                pass
-
-        await proc.wait()
-
-        if proc.returncode == 0:
-            yield _sse("ready", {"message": "Data ready", "pct": 100})
-        else:
-            err_bytes = await proc.stderr.read()
-            last = (err_bytes.decode().strip().split("\n") or ["Processing failed"])[-1]
-            yield _sse("error", {"message": last})
+        while True:
+            item = await queue.get()
+            if item[0] == "line":
+                try:
+                    yield _sse("progress", json.loads(item[1]))
+                except json.JSONDecodeError:
+                    pass
+            elif item[0] == "done":
+                returncode, stderr_text = item[1], item[2]
+                if returncode == 0:
+                    yield _sse("ready", {"message": "Data ready", "pct": 100})
+                else:
+                    last = (stderr_text.strip().split("\n") or ["Processing failed"])[-1]
+                    yield _sse("error", {"message": last})
+                break
 
     return StreamingResponse(stream(), media_type="text/event-stream")

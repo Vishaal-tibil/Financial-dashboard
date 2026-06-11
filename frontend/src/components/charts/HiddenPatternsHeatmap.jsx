@@ -81,7 +81,7 @@ export default function HiddenPatternsHeatmap() {
                   <div
                     key={y}
                     className="heatmap-cell"
-                    style={{ background: val != null ? heatColor(pct) : 'rgba(255,255,255,0.03)' }}
+                    style={{ background: val != null ? heatColor(pct) : 'rgba(0,0,0,0.04)' }}
                     title={`${c.name} ${y}: ${val != null ? val.toFixed(1) : '—'}`}
                   >
                     {val != null ? val.toFixed(1) : ''}

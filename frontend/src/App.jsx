@@ -1,13 +1,15 @@
 import { AppProvider, useApp } from './context/AppContext'
-import Sidebar    from './components/layout/Sidebar'
-import TopBar     from './components/layout/TopBar'
-import RightPanel from './components/layout/RightPanel'
-import UploadPage from './pages/UploadPage'
-import Overview   from './pages/Overview'
+import Sidebar       from './components/layout/Sidebar'
+import TopBar        from './components/layout/TopBar'
+import RightPanel    from './components/layout/RightPanel'
+import UploadPage    from './pages/UploadPage'
+import Overview      from './pages/Overview'
+import InsightStudio from './pages/InsightStudio'
 
 const PAGE_MAP = {
-  upload:   UploadPage,
-  overview: Overview,
+  upload:          UploadPage,
+  overview:        Overview,
+  'insight-studio': InsightStudio,
 }
 
 function Shell() {

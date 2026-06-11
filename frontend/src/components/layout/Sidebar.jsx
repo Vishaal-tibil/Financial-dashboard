@@ -1,31 +1,41 @@
 import { useState } from 'react'
 import {
   BarChart2, Activity, TrendingUp, Target,
-  Sparkles, Sliders, FileText, Database,
-  Settings, ChevronLeft, ChevronRight,
+  Sparkles, ChevronLeft, ChevronRight, Layers,
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 
 const NAV = [
-  { id: 'financial-benchmarking',    label: 'Financial Benchmarking',    icon: BarChart2   },
-  { id: 'operational-benchmarking',  label: 'Operational Benchmarking',  icon: Activity    },
-  { id: 'market-benchmarking',       label: 'Market Benchmarking',       icon: TrendingUp  },
-  { id: 'competitive-intelligence',  label: 'Competitive Intelligence',  icon: Target      },
-  { id: 'ai-insights',               label: 'AI Insights',               icon: Sparkles    },
-  { id: 'scenarios',                 label: 'Scenarios & What If',       icon: Sliders     },
-  { id: 'reports',                   label: 'Reports',                   icon: FileText    },
-  { id: 'data-dictionary',           label: 'Data Dictionary',           icon: Database    },
+  { id: 'financial-benchmarking',   label: 'Financial',           icon: BarChart2,  page: null },
+  { id: 'operational-benchmarking', label: 'Operational',         icon: Activity,   page: null },
+  { id: 'capital-efficiency',       label: 'Capital Efficiency',  icon: TrendingUp, page: null },
+  { id: 'competitive-intelligence', label: 'Competitive Intel',   icon: Target,     page: null },
+  { id: 'ai-insights',              label: 'AI Insights',         icon: Sparkles,   page: null },
 ]
 
+const STUDIO_ITEM = { id: 'insight-studio', label: 'Insight Studio', icon: Layers, page: 'insight-studio' }
+
 export default function Sidebar() {
-  const { activeSection, setActiveSection } = useApp()
+  const { activeSection, setActiveSection, navigate, currentPage } = useApp()
   const [collapsed, setCollapsed] = useState(false)
 
-  function scrollTo(id) {
-    setActiveSection(id)
-    const el = document.getElementById(id)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  function handleNav(item) {
+    if (item.page) {
+      navigate(item.page)
+      setActiveSection(item.id)
+    } else {
+      if (currentPage !== 'overview') navigate('overview')
+      setActiveSection(item.id)
+      // Scroll after brief delay so page renders first
+      setTimeout(() => {
+        const el = document.getElementById(item.id)
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 80)
+    }
   }
+
+  const isActive = (item) =>
+    item.page ? currentPage === item.page : (currentPage === 'overview' && activeSection === item.id)
 
   return (
     <nav className={`sidebar${collapsed ? ' collapsed' : ''}`}>
@@ -35,28 +45,48 @@ export default function Sidebar() {
         {!collapsed && <span className="logo-text">FinCompare</span>}
       </div>
 
-      {/* Nav items */}
+      {/* Main nav */}
       <div className="sidebar-nav">
-        {NAV.map(({ id, label, icon: Icon }) => (
+        <div className="sidebar-nav-group">
+          {!collapsed && <div className="sidebar-group-label">Dashboard</div>}
+          {NAV.map(item => (
+            <div
+              key={item.id}
+              className={`nav-item${isActive(item) ? ' active' : ''}`}
+              onClick={() => handleNav(item)}
+              title={collapsed ? item.label : undefined}
+            >
+              <item.icon />
+              {!collapsed && <span className="nav-label">{item.label}</span>}
+            </div>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="sidebar-divider" />
+
+        {/* Insight Studio */}
+        <div className="sidebar-nav-group">
+          {!collapsed && <div className="sidebar-group-label">Intelligence</div>}
           <div
-            key={id}
-            className={`nav-item${activeSection === id ? ' active' : ''}`}
-            onClick={() => scrollTo(id)}
-            title={collapsed ? label : undefined}
+            className={`nav-item nav-item-studio${isActive(STUDIO_ITEM) ? ' active' : ''}`}
+            onClick={() => handleNav(STUDIO_ITEM)}
+            title={collapsed ? STUDIO_ITEM.label : undefined}
           >
-            <Icon />
-            {!collapsed && <span className="nav-label">{label}</span>}
+            <STUDIO_ITEM.icon />
+            {!collapsed && (
+              <span className="nav-label">
+                {STUDIO_ITEM.label}
+                <span className="nav-badge">AI</span>
+              </span>
+            )}
           </div>
-        ))}
+        </div>
       </div>
 
-      {/* Bottom */}
+      {/* Collapse toggle */}
       <div className="sidebar-bottom">
-        <div className="nav-item" title={collapsed ? 'Settings' : undefined}>
-          <Settings />
-          {!collapsed && <span className="nav-label">Settings</span>}
-        </div>
-        <div className="nav-item" onClick={() => setCollapsed(c => !c)}>
+        <div className="nav-item" onClick={() => setCollapsed(c => !c)} title={collapsed ? 'Expand' : 'Collapse'}>
           {collapsed ? <ChevronRight /> : <ChevronLeft />}
           {!collapsed && <span className="nav-label">Collapse</span>}
         </div>

@@ -36,7 +36,7 @@ export default function RevenueLineChart() {
     scales: {
       x: { grid: { display: false }, ticks: { font: { size: 10 } } },
       y: {
-        grid: { color: 'rgba(255,255,255,0.04)' },
+        grid: { color: 'rgba(0,0,0,0.06)' },
         ticks: { font: { size: 10 }, callback: v => `₹${(v/1000).toFixed(1)}k Cr` },
       },
     },

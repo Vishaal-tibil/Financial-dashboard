@@ -1,15 +1,23 @@
-import { Download } from 'lucide-react'
+import { Download, PlusCircle } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
+
+function shortName(name) {
+  if (!name) return ''
+  // "CARBORUNDUM UNIVERSAL LTD" → "Carborundum"
+  const first = name.split(' ')[0]
+  return first.charAt(0) + first.slice(1).toLowerCase()
+}
 
 export default function TopBar() {
   const {
     companies, primaryCompany, setPrimaryCompany,
     selectedCompanies, setSelectedCompanies,
     selectedYears, setSelectedYears, meta,
+    navigate,
   } = useApp()
 
-  const allComps      = companies.filter(c => c.name !== primaryCompany)
-  const primaryObj    = companies.find(c => c.name === primaryCompany)
+  const allComps       = companies.filter(c => c.name !== primaryCompany)
+  const primaryObj     = companies.find(c => c.name === primaryCompany)
   const comparisonObjs = companies.filter(c => selectedCompanies.includes(c.name))
 
   const YEAR_OPTIONS = [3, 5, 7, 10]
@@ -25,9 +33,6 @@ export default function TopBar() {
 
   const latestYear = meta?.latest_year
   const startYear  = latestYear ? latestYear - selectedYears + 1 : null
-  const yearLabel  = latestYear
-    ? `Last ${selectedYears} Years (FY${String(startYear).slice(2)}–FY${String(latestYear).slice(2)})`
-    : `Last ${selectedYears} Years`
 
   return (
     <header className="topbar">
@@ -35,35 +40,48 @@ export default function TopBar() {
       <div className="topbar-title-block">
         <span className="topbar-title">Executive Cockpit</span>
         {primaryObj && (
-          <span className="topbar-company">{primaryObj.name}</span>
+          <span className="topbar-company" title={primaryObj.name}>
+            {shortName(primaryObj.name)}
+          </span>
         )}
       </div>
 
       <div className="topbar-divider" />
 
-      {/* Comparing with chips */}
+      {/* Comparing with — horizontally scrollable chips */}
       <div className="topbar-comparing">
-        <span className="comparing-label">Comparing with:</span>
+        <span className="comparing-label">Comparing:</span>
         <div className="company-chips">
           {comparisonObjs.map(c => (
             <span
               key={c.name}
               className="chip"
-              style={{ borderColor: `${c.color}44`, color: c.color, background: `${c.color}12` }}
+              title={c.name}
+              style={{ borderColor: `${c.color}55`, color: c.color, background: `${c.color}12` }}
             >
               <span className="chip-dot" style={{ background: c.color }} />
-              {c.name}
+              {shortName(c.name)}
               <span className="chip-x" onClick={() => removeComparison(c.name)}>✕</span>
             </span>
           ))}
-          {selectedCompanies.length < companies.length - 1 && (
-            <button className="chip-add" onClick={addNextCompany}>+ Add Competitor</button>
+          {allComps.length > comparisonObjs.length && (
+            <button className="chip-add" onClick={addNextCompany}>+ Add</button>
           )}
         </div>
       </div>
 
       {/* Right controls */}
       <div className="topbar-right">
+        {/* Add Company (upload new Excel) */}
+        <button
+          className="btn-add-company"
+          onClick={() => navigate('upload')}
+          title="Upload a new company Excel file"
+        >
+          <PlusCircle size={13} />
+          Add Company
+        </button>
+
         {/* Year selector */}
         <select
           className="year-badge"
@@ -72,9 +90,9 @@ export default function TopBar() {
           style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
         >
           {YEAR_OPTIONS.map(y => (
-            <option key={y} value={y} style={{ background: '#0f1628' }}>
+            <option key={y} value={y} style={{ background: '#1e293b' }}>
               {latestYear
-                ? `Last ${y} Years (FY${String(latestYear - y + 1).slice(2)}–FY${String(latestYear).slice(2)})`
+                ? `Last ${y} Yrs (FY${String(latestYear - y + 1).slice(2)}–FY${String(latestYear).slice(2)})`
                 : `Last ${y} Years`}
             </option>
           ))}
@@ -82,7 +100,7 @@ export default function TopBar() {
 
         <button className="btn-download">
           <Download size={12} />
-          Download Report
+          Download
         </button>
 
         <div className="avatar">A</div>
