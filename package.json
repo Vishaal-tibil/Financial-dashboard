@@ -2,11 +2,11 @@
   "name": "fd-financial-dashboard",
   "version": "1.0.0",
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "nodemon backend/server/index.js",
+    "dev":        "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd backend && uvicorn main:app --reload --port 8000",
     "dev:client": "cd frontend && npm run dev",
-    "build": "cd frontend && npm run build",
-    "start": "node backend/server/index.js"
+    "build":      "cd frontend && npm run build",
+    "start":      "cd backend && uvicorn main:app --port 8000"
   },
   "dependencies": {
     "concurrently": "^8.2.0"
