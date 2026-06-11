@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-python-multipart
-aiofiles
-pandas
-openpyxl
-numpy
-python-dotenv
-openai
