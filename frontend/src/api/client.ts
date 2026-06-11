@@ -91,22 +91,31 @@ export async function streamSSE(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+
+  const flush = (raw: string) => {
+    // an SSE event may contain multiple `data:` lines (per spec they concatenate)
+    const dataLines = raw
+      .split(/\r?\n/)
+      .filter((l) => l.startsWith('data:'))
+      .map((l) => l.slice(5).replace(/^ /, ''));
+    if (dataLines.length === 0) return;
+    const payload = dataLines.join('\n').trim();
+    if (!payload) return;
+    try {
+      onEvent(JSON.parse(payload));
+    } catch {
+      /* ignore malformed */
+    }
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const chunks = buffer.split('\n\n');
-    buffer = chunks.pop() ?? '';
-    for (const chunk of chunks) {
-      const line = chunk.split('\n').find((l) => l.startsWith('data:'));
-      if (!line) continue;
-      const payload = line.slice(5).trim();
-      if (!payload) continue;
-      try {
-        onEvent(JSON.parse(payload));
-      } catch {
-        /* ignore malformed */
-      }
-    }
+    // sse-starlette separates events with CRLF (\r\n\r\n); tolerate plain \n\n too
+    const events = buffer.split(/\r\n\r\n|\n\n/);
+    buffer = events.pop() ?? '';
+    for (const ev of events) flush(ev);
   }
+  if (buffer.trim()) flush(buffer);
 }
