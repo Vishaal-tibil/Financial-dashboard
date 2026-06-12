@@ -12,6 +12,16 @@ export default function RevenueLineChart() {
   const primaryMetrics = metrics[primaryCompany] || {}
   const allYears       = (primaryMetrics.years || []).slice(-selectedYears)
 
+  // Companies with fewer than 3 non-null data points in the visible window
+  const limitedNames = visible
+    .filter(c => {
+      const m = metrics[c.name] || {}
+      const yIdx = (m.years || []).reduce((acc, y, i) => { acc[y] = i; return acc }, {})
+      const nonNull = allYears.filter(y => yIdx[y] !== undefined && m.sales?.[yIdx[y]] != null)
+      return nonNull.length < 3
+    })
+    .map(c => c.name.split(' ')[0])
+
   const datasets = visible.map(c => {
     const m    = metrics[c.name] || {}
     const yIdx = (m.years || []).reduce((acc, y, i) => { acc[y] = i; return acc }, {})
@@ -69,7 +79,19 @@ export default function RevenueLineChart() {
   return (
     <div className="chart-card">
       <div className="chart-card-header">
-        <span className="chart-card-title">Revenue Trend</span>
+        <span className="chart-card-title">
+          Revenue Trend
+          {limitedNames.length > 0 && (
+            <span title={`${limitedNames.join(', ')}: limited historical data available`} style={{
+              marginLeft: 6, fontSize: 9, fontWeight: 500,
+              color: '#f59e0b', background: 'rgba(245,158,11,0.1)',
+              border: '1px solid rgba(245,158,11,0.3)',
+              borderRadius: 4, padding: '1px 5px', verticalAlign: 'middle',
+            }}>
+              {limitedNames.join(', ')}: limited data
+            </span>
+          )}
+        </span>
         <div style={{ display: 'flex', gap: 2 }}>
           {['absolute', 'indexed'].map(m => (
             <button

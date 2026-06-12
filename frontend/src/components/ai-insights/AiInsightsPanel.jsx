@@ -4,11 +4,14 @@ import { useApp } from '../../context/AppContext'
 import InsightBullet     from './InsightBullet'
 import InsightMetricCard from './InsightMetricCard'
 
+// Module-level cache — survives component remounts, cleared on full page refresh
+let _cache = null
+
 export default function AiInsightsPanel() {
   const { isDataReady } = useApp()
 
-  const [bullets,  setBullets]  = useState([])
-  const [metrics,  setMetrics]  = useState([])
+  const [bullets,  setBullets]  = useState(_cache?.bullets || [])
+  const [metrics,  setMetrics]  = useState(_cache?.metrics || [])
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState(null)
   const [lastFetch, setLastFetch] = useState(null)
@@ -24,8 +27,11 @@ export default function AiInsightsPanel() {
         throw new Error(msg)
       }
       const data = await res.json()
-      setBullets(data.insights || [])
-      setMetrics(data.metrics  || [])
+      const b = data.insights || []
+      const m = data.metrics  || []
+      _cache = { bullets: b, metrics: m }
+      setBullets(b)
+      setMetrics(m)
       setLastFetch(new Date())
     } catch (e) {
       setError(e.message)
@@ -34,9 +40,9 @@ export default function AiInsightsPanel() {
     }
   }
 
-  // Auto-fetch when data becomes ready
+  // Auto-fetch when data becomes ready — skip if already cached
   useEffect(() => {
-    if (isDataReady) fetchInsights()
+    if (isDataReady && !_cache) fetchInsights()
   }, [isDataReady])
 
   return (

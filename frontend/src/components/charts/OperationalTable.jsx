@@ -57,7 +57,7 @@ export default function OperationalTable() {
       </div>
 
       <div style={{ overflowX: 'auto', flex: 1 }}>
-        <table className="fd-table" style={{ minWidth: 340, width: '100%' }}>
+        <table className="fd-table" style={{ minWidth: 340, width: '100%', marginBottom: 0 }}>
           <thead>
             <tr>
               <th style={{ minWidth: 110 }}>KPI</th>
@@ -115,6 +115,9 @@ export default function OperationalTable() {
             })}
           </tbody>
         </table>
+      </div>
+      <div style={{ fontSize: 9.5, color: 'var(--text-muted)', marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+        * CCC = Inv Days + Debtor Days only (payable days excluded — not available from data source)
       </div>
     </div>
   )
