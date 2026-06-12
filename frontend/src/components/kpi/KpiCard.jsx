@@ -10,9 +10,10 @@ function fmt(value, unit) {
   return n.toFixed(1)
 }
 
+// trend: +1 = improved YoY (green up), -1 = worsened (red down), 0 = flat/unknown
 export default function KpiCard({ label, value, unit, rank, rankOf, trend }) {
-  const isUp   = trend > 0
-  const isDown = trend < 0
+  const isUp   = trend === 1
+  const isDown = trend === -1
 
   return (
     <div className="kpi-card">

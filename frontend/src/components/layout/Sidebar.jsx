@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   BarChart2, Activity, TrendingUp, Target,
-  Sparkles, ChevronLeft, ChevronRight, Layers,
+  ChevronLeft, ChevronRight, Layers,
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 
@@ -10,7 +10,6 @@ const NAV = [
   { id: 'operational-benchmarking', label: 'Operational',         icon: Activity,   page: null },
   { id: 'capital-efficiency',       label: 'Capital Efficiency',  icon: TrendingUp, page: null },
   { id: 'competitive-intelligence', label: 'Competitive Intel',   icon: Target,     page: null },
-  { id: 'ai-insights',              label: 'AI Insights',         icon: Sparkles,   page: null },
 ]
 
 const STUDIO_ITEM = { id: 'insight-studio', label: 'Insight Studio', icon: Layers, page: 'insight-studio' }

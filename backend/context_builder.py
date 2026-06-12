@@ -34,21 +34,23 @@ def build_context() -> str:
     ]
 
     # KPI summary table
-    headers = ["Company", "Rev Growth%", "EBITDA%", "ROCE%", "AssetTurn", "InvDays", "CCC", "D/E"]
-    lines.append("  ".join(f"{h:<14}" for h in headers))
+    headers = ["Company", "Rev%YoY", "EBITDA%", "ROCE%", "NetM%", "AssetTurn", "InvTurns", "CCC", "CFO/Sales", "D/E"]
+    lines.append("  ".join(f"{h:<13}" for h in headers))
 
     for c in companies:
         row = [
-            c.get("name", "")[:14],
+            c.get("name", "")[:13],
             f"{c.get('rev_growth') or 0:.1f}%",
             f"{c.get('ebitda_margin') or 0:.1f}%",
             f"{c.get('roce') or 0:.1f}%",
+            f"{c.get('net_margin') or 0:.1f}%",
             f"{c.get('asset_turn') or 0:.2f}x",
-            f"{c.get('inv_days') or 0:.0f}d",
+            f"{c.get('inv_turns') or 0:.1f}x",
             f"{c.get('ccc') or 0:.0f}d",
+            f"{c.get('cfo_to_sales') or 0:.1f}%",
             f"{c.get('debt_equity') or 0:.2f}x",
         ]
-        lines.append("  ".join(f"{v:<14}" for v in row))
+        lines.append("  ".join(f"{v:<13}" for v in row))
 
     lines.append("")
 
@@ -69,12 +71,13 @@ def build_context() -> str:
 
         lines += [
             f"--- {name} ---",
-            f"  Revenue (₹Cr):      {ts('sales')}",
+            f"  Revenue (Rs Cr):    {ts('sales')}",
             f"  EBITDA Margin (%):  {ts('ebitda_margin')}",
-            f"  Net Profit (₹Cr):   {ts('net_profit')}",
+            f"  Net Margin (%):     {ts('net_margin')}",
             f"  ROCE (%):           {ts('roce')}",
-            f"  FCF (₹Cr):         {ts('fcf')}",
-            f"  Inventory Days:     {ts('inv_days')}",
+            f"  FCF (Rs Cr):        {ts('fcf')}",
+            f"  Inv Turns (x):      {ts('inv_turns')}",
+            f"  CFO/Sales (%):      {ts('cfo_to_sales')}",
             "",
         ]
 

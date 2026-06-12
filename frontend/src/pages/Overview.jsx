@@ -1,13 +1,13 @@
 import { useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 
-import KpiRow                from '../components/kpi/KpiRow'
-import FinancialRadarChart   from '../components/charts/FinancialRadarChart'
-import RevenueLineChart      from '../components/charts/RevenueLineChart'
-import EbitdaTable           from '../components/charts/EbitdaTable'
-import WaterfallChart        from '../components/charts/WaterfallChart'
-import QuadrantMatrix        from '../components/charts/QuadrantMatrix'
-import HiddenPatternsHeatmap from '../components/charts/HiddenPatternsHeatmap'
+import KpiRow              from '../components/kpi/KpiRow'
+import FinancialRadarChart  from '../components/charts/FinancialRadarChart'
+import RevenueLineChart     from '../components/charts/RevenueLineChart'
+import OperationalTable     from '../components/charts/OperationalTable'
+import QuadrantMatrix       from '../components/charts/QuadrantMatrix'
+import EbitdaTable          from '../components/charts/EbitdaTable'
+import CompetitiveSection   from '../components/competitive/CompetitiveSection'
 
 function SectionHeader({ id, title, badge }) {
   return (
@@ -40,31 +40,29 @@ export default function Overview() {
 
   return (
     <div className="overview-root">
-      {/* ── KPI Row ── */}
+
+      {/* ── KPI Strip ── */}
       <KpiRow />
 
-      {/* ── Row 1: Financial Benchmarking ++ Operational (Waterfall) ── */}
+      {/* ── Row 1: Financial Benchmarking (radar+line) | Operational Benchmarking (table) ── */}
       <div className="overview-row1">
 
         <div id="financial-benchmarking" className="overview-col min-w-0">
           <SectionHeader id="financial-benchmarking-hdr" title="Financial Benchmarking" />
           <div className="fin-inner-grid">
             <FinancialRadarChart />
-            <div className="fin-right-stack">
-              <RevenueLineChart />
-              <EbitdaTable />
-            </div>
+            <RevenueLineChart />
           </div>
         </div>
 
         <div id="operational-benchmarking" className="overview-col min-w-0">
           <SectionHeader id="operational-benchmarking-hdr" title="Operational Benchmarking" />
-          <WaterfallChart />
+          <OperationalTable />
         </div>
 
       </div>
 
-      {/* ── Row 2: Capital Efficiency Matrix ++ Hidden Patterns ── */}
+      {/* ── Row 2: Capital Efficiency Matrix | Margin Waterfall Benchmark ── */}
       <div className="overview-row2">
 
         <div id="capital-efficiency" className="overview-col min-w-0">
@@ -72,20 +70,19 @@ export default function Overview() {
           <QuadrantMatrix />
         </div>
 
-        <div id="hidden-patterns" className="overview-col min-w-0">
-          <SectionHeader id="hidden-patterns-hdr" title="Hidden Patterns" />
-          <HiddenPatternsHeatmap />
+        <div id="operational-benchmarking-margin" className="overview-col min-w-0">
+          <SectionHeader title="Margin Waterfall Benchmark" />
+          <EbitdaTable />
         </div>
 
       </div>
 
-      {/* ── Competitive Intelligence — Dev 2 ── */}
+      {/* ── Competitive Intelligence Feed ── */}
       <div id="competitive-intelligence" className="section">
-        <SectionHeader id="competitive-intelligence-hdr" title="Competition Intelligence Tool" />
-        <div className="chart-card" style={{ height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
-          Competitive Intelligence — Dev 2
-        </div>
+        <SectionHeader id="competitive-intelligence-hdr" title="Competition Intelligence" />
+        <CompetitiveSection />
       </div>
+
     </div>
   )
 }

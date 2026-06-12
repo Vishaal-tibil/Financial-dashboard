@@ -18,7 +18,11 @@ export default function AiInsightsPanel() {
     setError(null)
     try {
       const res  = await fetch('/api/insights', { method: 'POST' })
-      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const msg  = body.detail || `Server error ${res.status}`
+        throw new Error(msg)
+      }
       const data = await res.json()
       setBullets(data.insights || [])
       setMetrics(data.metrics  || [])

@@ -79,28 +79,32 @@ def parse_excel(path: str) -> dict:
         """Read annual series starting at the detected column offset."""
         return pd.Series(rv(r)[1+ann_offset:1+ann_offset+len(idx)], index=idx, dtype=float)
 
-    sales      = ser(17, years)
-    raw_mat    = ser(18, years)
-    chg_inv    = ser(19, years)
-    power_fuel = ser(20, years)
-    other_mfr  = ser(21, years)
-    emp_cost   = ser(22, years)
-    selling    = ser(23, years)
-    other_exp  = ser(24, years)
-    deprec     = ser(26, years)
-    net_profit = ser(30, years)
+    sales        = ser(17, years)
+    raw_mat      = ser(18, years)
+    chg_inv      = ser(19, years)
+    power_fuel   = ser(20, years)
+    other_mfr    = ser(21, years)
+    emp_cost     = ser(22, years)
+    selling      = ser(23, years)
+    other_exp    = ser(24, years)
+    other_income = ser(25, years)   # non-operating; excluded from operating EBITDA
+    deprec       = ser(26, years)
+    interest_ser = ser(27, years)
+    pbt_ser      = ser(28, years)
+    tax_ser      = ser(29, years)
+    net_profit   = ser(30, years)
 
-    total_exp  = (raw_mat.fillna(0) + chg_inv.fillna(0) + power_fuel.fillna(0) +
-                  other_mfr.fillna(0) + emp_cost.fillna(0) + selling.fillna(0) +
-                  other_exp.fillna(0))
-    op_profit  = sales - total_exp
-    ebitda     = op_profit + deprec.fillna(0)
-    ebit       = ebitda - deprec.fillna(0)
+    # Top-down EBITDA: PBT + Interest + Depreciation − Other Income
+    # Reliable for all years including FY26 where Screener bundles sub-expense lines
+    # into Other Expenses, making bottom-up summing incorrect for the latest year.
+    ebitda     = (pbt_ser.fillna(0) + interest_ser.fillna(0)
+                  + deprec.fillna(0) - other_income.fillna(0))
+    ebit       = ebitda - deprec.fillna(0)    # = PBT + Interest − Other Income
 
     safe_sales    = sales.replace(0, np.nan)
     ebitda_margin = (ebitda / safe_sales * 100).round(2)
     net_margin    = (net_profit / safe_sales * 100).round(2)
-    op_margin     = (op_profit / safe_sales * 100).round(2)
+    op_margin     = (ebit / safe_sales * 100).round(2)   # EBIT margin
 
     # ── Quarterly section ─────────────────────────────────────────────────────
     q_offset = _col_offset(rv(41))
@@ -145,6 +149,7 @@ def parse_excel(path: str) -> dict:
     inv_days    = (inventory / safe_sales_bs * 365).round(1)
     debtor_days = (receivable / safe_sales_bs * 365).round(1)
     ccc         = (inv_days + debtor_days).round(1)
+    inv_turns   = (safe_sales_bs / inventory.replace(0, np.nan)).round(2)
     asset_turn  = (sales.reindex(bs_years) / total_liab.replace(0, np.nan)).round(2)
 
     # ── Cash flow — detect right-alignment ───────────────────────────────────
@@ -179,17 +184,21 @@ def parse_excel(path: str) -> dict:
     safe_ebit = ebitda.replace(0, np.nan)
     ev_ebitda = (ev / safe_ebit).round(1)
 
-    # ── Also store P&L components for waterfall chart ─────────────────────────
-    raw_mat_last    = last(to_list(raw_mat))
-    emp_cost_last   = last(to_list(emp_cost))
-    other_opex_last = last(to_list(chg_inv.fillna(0) + power_fuel.fillna(0) + other_mfr.fillna(0) + selling.fillna(0) + other_exp.fillna(0)))
-    deprec_last     = last(to_list(deprec))
-    # interest from P&L row 27 if available
-    interest_row    = ser(27, years) if 27 in rows else pd.Series(dtype=float)
-    tax_row         = ser(29, years) if 29 in rows else pd.Series(dtype=float)
-    interest_last   = last(to_list(interest_row)) if len(interest_row) else None
-    tax_last        = last(to_list(tax_row))        if len(tax_row)      else None
-    sales_last      = last(to_list(sales))
+    # ── Waterfall P&L scalars (latest available year) ────────────────────────
+    # other_opex is computed residually: sales − raw_mat − emp_cost − ebit
+    # This ensures the waterfall bridge always sums correctly even when Screener
+    # bundles sub-lines (other_mfr, SGA) into Other Expenses in the latest year.
+    sales_last        = last(to_list(sales))
+    raw_mat_last      = last(to_list(raw_mat))
+    emp_cost_last     = last(to_list(emp_cost))
+    deprec_last       = last(to_list(deprec))
+    interest_last     = last(to_list(interest_ser))
+    tax_last          = last(to_list(tax_ser))
+    ebit_last         = last(to_list(ebit))
+    other_opex_last   = (
+        (sales_last or 0) - (raw_mat_last or 0) - (emp_cost_last or 0) - (ebit_last or 0)
+        if sales_last is not None and ebit_last is not None else None
+    )
 
     # ── Build list versions ───────────────────────────────────────────────────
     sales_l         = to_list(sales)
@@ -197,6 +206,7 @@ def parse_excel(path: str) -> dict:
     roce_l          = to_list(roce)
     asset_turn_l    = to_list(asset_turn)
     inv_days_l      = to_list(inv_days)
+    inv_turns_l     = to_list(inv_turns)
     ccc_l           = to_list(ccc)
     roe_l           = to_list(roe)
     net_margin_l    = to_list(net_margin)
@@ -205,6 +215,8 @@ def parse_excel(path: str) -> dict:
     pe_l            = to_list(pe_ratio)
     pb_l            = to_list(pb_ratio)
     ev_ebitda_l     = to_list(ev_ebitda)
+    cfo_l           = to_list(cfo)
+    cfo_to_sales_l  = to_list((cfo / sales.reindex(cf_years).replace(0, np.nan) * 100).round(1))
 
     return {
         "company":       company_name,
@@ -218,12 +230,15 @@ def parse_excel(path: str) -> dict:
         "roce_kpi":          last(roce_l),
         "asset_turn_kpi":    last(asset_turn_l),
         "inv_days_kpi":      last(inv_days_l),
+        "inv_turns_kpi":     last(inv_turns_l),
         "debtor_days_kpi":   last(to_list(debtor_days)),
         "ccc_kpi":           last(ccc_l),
         "roe_kpi":           last(roe_l),
         "net_margin_kpi":    last(net_margin_l),
         "debt_equity_kpi":   last(debt_equity_l),
         "fcf_kpi":           last(fcf_l),
+        "cfo_to_sales_kpi":  last(cfo_to_sales_l),
+        "cap_employed_kpi":  last(to_list(cap_employ.reindex(bs_years))),
         "rev_cagr_3":        cagr(sales_l, years, 3),
         "rev_cagr_5":        cagr(sales_l, years, 5),
         "pe_kpi":            last(pe_l),
@@ -249,11 +264,13 @@ def parse_excel(path: str) -> dict:
         "roe":           roe_l,
         "debt_equity":   debt_equity_l,
         "inv_days":      inv_days_l,
+        "inv_turns":     inv_turns_l,
         "debtor_days":   to_list(debtor_days),
         "ccc":           ccc_l,
         "asset_turn":    asset_turn_l,
         "fcf":           fcf_l,
-        "cfo":           to_list(cfo),
+        "cfo":           cfo_l,
+        "cfo_to_sales":  cfo_to_sales_l,
         "cfi":           to_list(cfi),
         "cff":           to_list(cff),
         "capex":         to_list(capex),
@@ -271,7 +288,8 @@ def parse_excel(path: str) -> dict:
 
 def add_ranks(companies):
     n = len(companies)
-    metrics_higher = ["rev_growth", "ebitda_margin", "roce", "roe", "net_margin", "asset_turn", "fcf"]
+    metrics_higher = ["rev_growth", "ebitda_margin", "roce", "roe", "net_margin",
+                      "asset_turn", "inv_turns", "fcf", "cfo_to_sales"]
     metrics_lower  = ["inv_days", "ccc", "debt_equity"]
 
     for metric in metrics_higher + metrics_lower:
@@ -329,8 +347,11 @@ def main():
         "roce":          data["roce_kpi"],
         "asset_turn":    data["asset_turn_kpi"],
         "inv_days":      data["inv_days_kpi"],
+        "inv_turns":     data["inv_turns_kpi"],
         "debtor_days":   data["debtor_days_kpi"],
         "ccc":           data["ccc_kpi"],
+        "cfo_to_sales":  data["cfo_to_sales_kpi"],
+        "cap_employed":  data["cap_employed_kpi"],
         "roe":           data["roe_kpi"],
         "net_margin":    data["net_margin_kpi"],
         "debt_equity":   data["debt_equity_kpi"],
@@ -357,8 +378,8 @@ def main():
     existing_mets[name] = {k: data[k] for k in [
         "years", "sales", "ebitda", "ebitda_margin", "net_profit",
         "net_margin", "op_margin", "roce", "roe", "debt_equity",
-        "inv_days", "debtor_days", "ccc", "asset_turn",
-        "fcf", "cfo", "cfi", "cff", "capex", "prices",
+        "inv_days", "inv_turns", "debtor_days", "ccc", "asset_turn",
+        "fcf", "cfo", "cfo_to_sales", "cfi", "cff", "capex", "prices",
         "pe_ratio", "pb_ratio", "ev_ebitda",
         "q_labels", "q_sales", "q_op", "q_net", "q_opm",
     ]}
