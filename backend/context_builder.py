@@ -69,16 +69,41 @@ def build_context() -> str:
                 for y, v in zip(yrs, vals)
             )
 
+        # Quarterly labels + metrics (if available)
+        q_labels = m.get("q_labels") or []
+        q_sales  = m.get("q_sales")  or []
+        q_opm    = m.get("q_opm")    or []
+        q_net    = m.get("q_net")    or []
+        q_line = ""
+        if q_labels and q_sales:
+            def _fmt(v, dec=1):
+                return f"{round(v, dec)}" if v is not None else "N/A"
+            q_parts = [f"{lbl}:Rev={_fmt(s)},OPM={_fmt(p)}%,NP={_fmt(n)}"
+                       for lbl, s, p, n in zip(q_labels, q_sales, q_opm, q_net)]
+            q_line = f"  Recent Quarters:    {', '.join(q_parts)}"
+
         lines += [
             f"--- {name} ---",
             f"  Revenue (Rs Cr):    {ts('sales')}",
             f"  EBITDA Margin (%):  {ts('ebitda_margin')}",
+            f"  Op/EBIT Margin (%): {ts('op_margin')}",
             f"  Net Margin (%):     {ts('net_margin')}",
             f"  ROCE (%):           {ts('roce')}",
+            f"  ROE (%):            {ts('roe')}",
+            f"  Asset Turn (x):     {ts('asset_turn')}",
+            f"  D/E Ratio (x):      {ts('debt_equity')}",
+            f"  Inv Days:           {ts('inv_days')}",
+            f"  Debtor Days:        {ts('debtor_days')}",
+            f"  CCC (days):         {ts('ccc')}",
             f"  FCF (Rs Cr):        {ts('fcf')}",
+            f"  CAPEX (Rs Cr):      {ts('capex')}",
             f"  Inv Turns (x):      {ts('inv_turns')}",
             f"  CFO/Sales (%):      {ts('cfo_to_sales')}",
-            "",
+            f"  P/E Ratio:          {ts('pe_ratio')}",
+            f"  EV/EBITDA:          {ts('ev_ebitda')}",
         ]
+        if q_line:
+            lines.append(q_line)
+        lines.append("")
 
     return "\n".join(lines)
