@@ -1,5 +1,6 @@
 import { Bubble } from 'react-chartjs-2'
 import { useApp } from '../../context/AppContext'
+import { fyLabel } from '../../utils/fy'
 
 // Quadrant lines + labels + company name above each bubble
 const quadrantPlugin = {
@@ -73,7 +74,8 @@ function scaleBubble(rev, allRevs) {
 }
 
 export default function QuadrantMatrix() {
-  const { companies, primaryCompany, selectedCompanies } = useApp()
+  const { companies, primaryCompany, selectedCompanies, meta } = useApp()
+  const latestFY = meta?.latest_year ? fyLabel(meta.latest_year) : 'Latest'
   const visibleNames = [primaryCompany, ...selectedCompanies].filter(Boolean)
   const visible      = companies.filter(c => visibleNames.includes(c.name))
 
@@ -138,7 +140,7 @@ export default function QuadrantMatrix() {
     <div className="chart-card">
       <div className="chart-card-header">
         <span className="chart-card-title">Capital Efficiency Matrix</span>
-        <span className="chart-card-sub">Cap. Employed × EBIT Margin — bubble = Revenue</span>
+        <span className="chart-card-sub">{latestFY} — Cap. Employed × EBIT Margin · bubble = Revenue</span>
       </div>
       <div className="chart-canvas-wrap" style={{ height: 260 }}>
         <Bubble

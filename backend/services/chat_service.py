@@ -202,24 +202,24 @@ async def stream_chat(
             yield {"type": "token", "text": token}
     except Exception as exc:
         if isinstance(exc, groq_client.RateLimitError) or "429" in str(exc):
-            # Groq rate limited — fall back to Qwen via HuggingFace
+            # Groq rate limited — fall back to Mistral
             try:
-                from ai_client import call_qwen_chat, has_qwen
-                if not has_qwen():
-                    yield {"type": "error", "message": "Groq rate limit reached and no HF_TOKEN configured."}
+                from ai_client import call_mistral_chat, has_mistral
+                if not has_mistral():
+                    yield {"type": "error", "message": "Groq rate limit reached and no MISTRAL_API_KEY configured."}
                     yield {"type": "done"}
                     return
-                yield {"type": "status", "text": "Groq limit reached — switching to fallback AI…"}
-                text = await call_qwen_chat(messages)
+                yield {"type": "status", "text": "Groq limit reached — switching to Mistral…"}
+                text = await call_mistral_chat(messages)
                 if text:
                     yield {"type": "token", "text": text}
                     answer_parts = [text]
                 else:
-                    yield {"type": "error", "message": "Qwen returned an empty response."}
+                    yield {"type": "error", "message": "Mistral returned an empty response."}
                     yield {"type": "done"}
                     return
-            except Exception as qexc:
-                yield {"type": "error", "message": f"Qwen fallback failed: {qexc}"}
+            except Exception as mexc:
+                yield {"type": "error", "message": f"Mistral fallback failed: {mexc}"}
                 yield {"type": "done"}
                 return
         else:

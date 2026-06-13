@@ -1,15 +1,15 @@
 import { Radar } from 'react-chartjs-2'
 import { useApp } from '../../context/AppContext'
+import { fyLabel, getWindowVal } from '../../utils/fy'
 
-// 7 axes per spec; higher = better for all — debt_equity is inverted
 const AXES = [
-  { key: 'ebitda_margin', label: 'EBITDA %',      invert: false },
-  { key: 'roce',          label: 'ROCE %',         invert: false },
-  { key: 'net_margin',    label: 'Net Margin %',   invert: false },
-  { key: 'asset_turn',    label: 'Asset Turn',     invert: false },
-  { key: 'roe',           label: 'ROE %',          invert: false },
-  { key: 'cfo_to_sales',  label: 'CFO/Sales %',    invert: false },
-  { key: 'debt_equity',   label: 'Debt/Equity',    invert: true  },
+  { key: 'ebitda_margin', label: 'EBITDA %',    invert: false },
+  { key: 'roce',          label: 'ROCE %',       invert: false },
+  { key: 'net_margin',    label: 'Net Margin %', invert: false },
+  { key: 'asset_turn',    label: 'Asset Turn',   invert: false },
+  { key: 'roe',           label: 'ROE %',        invert: false },
+  { key: 'cfo_to_sales',  label: 'CFO/Sales %',  invert: false },
+  { key: 'debt_equity',   label: 'Debt/Equity',  invert: true  },
 ]
 
 function normalise(val, min, max, invert) {
@@ -34,21 +34,36 @@ function bestPeer(peers, all, ranges) {
 }
 
 export default function FinancialRadarChart() {
-  const { companies, primaryCompany } = useApp()
+  const { companies, metrics, primaryCompany, selectedYears, selectedFY } = useApp()
 
-  const primary = companies.find(c => c.name === primaryCompany)
-  const peers   = companies.filter(c => c.name !== primaryCompany)
+  const primaryM = metrics[primaryCompany] || {}
+  const allYears = selectedFY
+    ? [selectedFY]
+    : (primaryM.years || []).slice(-selectedYears)
+
+  // Resolve a metric value for a company at the current filter (FY or window)
+  function getVal(companyName, key) {
+    return getWindowVal(metrics, companyName, key, allYears)
+  }
+
+  // Build enriched company objects with metric values for the current FY/window
+  const enriched = companies.map(c => ({
+    ...c,
+    ...Object.fromEntries(AXES.map(({ key }) => [key, getVal(c.name, key)])),
+  }))
+
+  const primary = enriched.find(c => c.name === primaryCompany)
+  const peers   = enriched.filter(c => c.name !== primaryCompany)
 
   const ranges = AXES.map(({ key }) => {
-    const vals = companies.map(c => c[key]).filter(v => v != null)
+    const vals = enriched.map(c => c[key]).filter(v => v != null)
     return { min: Math.min(...vals), max: Math.max(...vals) }
   })
 
-  const best = bestPeer(peers, companies, ranges)
+  const best = bestPeer(peers, enriched, ranges)
 
-  // Industry median across all companies (not just visible)
   const medianNorm = AXES.map(({ key, invert }, i) => {
-    const vals = companies.map(c => c[key]).filter(v => v != null)
+    const vals = enriched.map(c => c[key]).filter(v => v != null)
     return vals.length ? normalise(median(vals), ranges[i].min, ranges[i].max, invert) : 50
   })
 
@@ -101,39 +116,31 @@ export default function FinancialRadarChart() {
         ticks:       { display: false },
         grid:        { color: 'rgba(0,0,0,0.07)' },
         angleLines:  { color: 'rgba(0,0,0,0.07)' },
-        pointLabels: {
-          color:   '#64748b',
-          font:    { size: 8, weight: '500' },
-          padding: 6,
-        },
+        pointLabels: { color: '#64748b', font: { size: 8, weight: '500' }, padding: 6 },
       },
     },
     plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { boxWidth: 8, padding: 10, font: { size: 9 } },
-      },
-      tooltip: {
-        callbacks: {
-          label: ctx => {
-            if (ctx.datasetIndex === 2) {
-              // Median: show real median value
-              const { key, invert } = AXES[ctx.dataIndex]
-              const vals = companies.map(c => c[key]).filter(v => v != null)
-              const med  = vals.length ? median(vals) : null
-              return med != null ? ` Industry Median: ${Number(med).toFixed(2)}` : ` Industry Median: —`
-            }
-            const c    = pair[ctx.datasetIndex]
-            const axis = AXES[ctx.dataIndex]
-            const raw  = c?.[axis.key]
-            return raw != null
-              ? ` ${axis.label}: ${Number(raw).toFixed(2)}`
-              : ` ${axis.label}: —`
-          },
+      legend: { position: 'bottom', labels: { boxWidth: 8, padding: 10, font: { size: 9 } } },
+      tooltip: { callbacks: {
+        label: ctx => {
+          if (ctx.datasetIndex === 2) {
+            const { key } = AXES[ctx.dataIndex]
+            const vals = enriched.map(c => c[key]).filter(v => v != null)
+            const med  = vals.length ? median(vals) : null
+            return med != null ? ` Industry Median: ${Number(med).toFixed(2)}` : ` Industry Median: —`
+          }
+          const c    = pair[ctx.datasetIndex]
+          const axis = AXES[ctx.dataIndex]
+          const raw  = c?.[axis.key]
+          return raw != null ? ` ${axis.label}: ${Number(raw).toFixed(2)}` : ` ${axis.label}: —`
         },
-      },
+      }},
     },
   }
+
+  const subtitle = selectedFY
+    ? `${fyLabel(selectedFY)} · vs Best Peer + Industry Median`
+    : 'vs Best Peer + Industry Median — normalised 0–100'
 
   if (!primary) return (
     <div className="chart-card" style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
@@ -145,7 +152,7 @@ export default function FinancialRadarChart() {
     <div className="chart-card">
       <div className="chart-card-header">
         <span className="chart-card-title">Financial Health Radar</span>
-        <span className="chart-card-sub">vs Best Peer + Industry Median — normalised 0–100</span>
+        <span className="chart-card-sub">{subtitle}</span>
       </div>
       <div className="chart-canvas-wrap" style={{ height: 310 }}>
         <Radar data={{ labels: AXES.map(a => a.label), datasets }} options={options} />

@@ -11,10 +11,13 @@ export function AppProvider({ children }) {
   const [primaryCompany, setPrimaryCompany]     = useState(null)
   const [selectedCompanies, setSelectedCompanies] = useState([])
   const [selectedYears, setSelectedYears]       = useState(5)
-  const [activeSection, setActiveSection]       = useState('financial-benchmarking')
+  const [activeSection, setActiveSection]       = useState('overview')
+  const [selectedFY, setSelectedFY]             = useState(null)   // null = range, int = pinned FY end-year
+  const [selectedQuarter, setSelectedQuarter]   = useState(null)   // null = full year, 1-4
   const [isDataReady, setIsDataReady]           = useState(false)
   const [aiInsights, setAiInsights]             = useState(null)
   const [chatHistory, setChatHistory]           = useState([])
+  const [panelOpen, setPanelOpen]               = useState(false)
 
   const navigate = useCallback((page) => {
     setNavHistory(h => [...h, currentPage])
@@ -47,7 +50,7 @@ export function AppProvider({ children }) {
 
       if (c.length > 0) {
         setPrimaryCompany(c[0].name)
-        setSelectedCompanies(c.slice(1).map(co => co.name))
+        setSelectedCompanies([])   // user manually picks competitors
       }
       return true
     } catch (e) {
@@ -79,10 +82,13 @@ export function AppProvider({ children }) {
       selectedCompanies, setSelectedCompanies,
       selectedYears,     setSelectedYears,
       activeSection,     setActiveSection,
+      selectedFY,        setSelectedFY,
+      selectedQuarter,   setSelectedQuarter,
       isDataReady,       setIsDataReady,
       loadData,
       aiInsights,  setAiInsights,
       chatHistory, setChatHistory,
+      panelOpen,   setPanelOpen,
     }}>
       {children}
     </AppContext.Provider>

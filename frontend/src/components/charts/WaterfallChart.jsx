@@ -155,7 +155,7 @@ export default function WaterfallChart() {
     <div className="chart-card">
       <div className="chart-card-header">
         <span className="chart-card-title">P&L Waterfall Bridge</span>
-        <span className="chart-card-sub">{primary.name.split(' ')[0]} — FY{String(primary.latest_year || '').slice(2)}</span>
+        <span className="chart-card-sub">{primary.name.split(' ')[0]} — FY{String((primary.latest_year || 1) - 1).slice(2)}</span>
       </div>
 
       {/* EBITDA summary pills */}

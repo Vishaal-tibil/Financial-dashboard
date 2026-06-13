@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../../context/AppContext'
+import { fyLabel } from '../../utils/fy'
 
 const METRIC_OPTIONS = [
   { key: 'ebitda_margin', label: 'EBITDA Margin %' },
@@ -11,23 +12,26 @@ const METRIC_OPTIONS = [
 ]
 
 function heatColor(pct) {
-  // blue (low) → green (mid) → amber (high)
   if (pct < 0.33) return `rgba(76,158,235,${0.4 + pct * 1.2})`
   if (pct < 0.66) return `rgba(46,196,182,${0.5 + pct * 0.6})`
   return `rgba(251,191,36,${0.5 + pct * 0.5})`
 }
 
 export default function HiddenPatternsHeatmap() {
-  const { metrics, companies, primaryCompany, selectedCompanies, selectedYears } = useApp()
+  const {
+    metrics, companies, primaryCompany, selectedCompanies,
+    selectedYears, selectedFY,
+  } = useApp()
   const [metricKey, setMetricKey] = useState('ebitda_margin')
 
   const visibleNames = [primaryCompany, ...selectedCompanies].filter(Boolean)
   const visible      = companies.filter(c => visibleNames.includes(c.name))
 
   const primaryM = metrics[primaryCompany] || {}
-  const allYears = (primaryM.years || []).slice(-selectedYears)
+  const allYears = selectedFY
+    ? [selectedFY]
+    : (primaryM.years || []).slice(-selectedYears)
 
-  // Collect all values for normalisation
   const allVals = visible.flatMap(c => {
     const m    = metrics[c.name] || {}
     const yIdx = (m.years || []).reduce((acc, y, i) => { acc[y] = i; return acc }, {})
@@ -35,21 +39,26 @@ export default function HiddenPatternsHeatmap() {
   })
   const mn = Math.min(...allVals), mx = Math.max(...allVals)
 
+  const subtitle = selectedFY ? fyLabel(selectedFY) : `Last ${selectedYears} FY`
+
   return (
     <div className="chart-card">
       <div className="chart-card-header">
         <span className="chart-card-title">Hidden Patterns — Heatmap</span>
-        <select
-          value={metricKey}
-          onChange={e => setMetricKey(e.target.value)}
-          style={{
-            background: 'var(--bg-base)', border: '1px solid var(--border)',
-            color: 'var(--text-secondary)', borderRadius: 5, padding: '3px 8px',
-            fontSize: 11, cursor: 'pointer',
-          }}
-        >
-          {METRIC_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-        </select>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span className="chart-card-sub">{subtitle}</span>
+          <select
+            value={metricKey}
+            onChange={e => setMetricKey(e.target.value)}
+            style={{
+              background: 'var(--bg-base)', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', borderRadius: 5, padding: '3px 8px',
+              fontSize: 11, cursor: 'pointer',
+            }}
+          >
+            {METRIC_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="heatmap-wrap">
@@ -57,7 +66,9 @@ export default function HiddenPatternsHeatmap() {
         <div style={{ display: 'grid', gridTemplateColumns: `100px repeat(${allYears.length}, 1fr)`, gap: 3, marginBottom: 3 }}>
           <div />
           {allYears.map(y => (
-            <div key={y} className="heatmap-label" style={{ justifyContent: 'center', fontSize: 9 }}>{y}</div>
+            <div key={y} className="heatmap-label" style={{ justifyContent: 'center', fontSize: 9 }}>
+              {fyLabel(y)}
+            </div>
           ))}
         </div>
 
@@ -82,7 +93,7 @@ export default function HiddenPatternsHeatmap() {
                     key={y}
                     className="heatmap-cell"
                     style={{ background: val != null ? heatColor(pct) : 'rgba(0,0,0,0.04)' }}
-                    title={`${c.name} ${y}: ${val != null ? val.toFixed(1) : '—'}`}
+                    title={`${c.name} ${fyLabel(y)}: ${val != null ? val.toFixed(1) : '—'}`}
                   >
                     {val != null ? val.toFixed(1) : ''}
                   </div>

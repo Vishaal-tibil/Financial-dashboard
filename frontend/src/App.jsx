@@ -13,7 +13,7 @@ const PAGE_MAP = {
 }
 
 function Shell() {
-  const { currentPage } = useApp()
+  const { currentPage, panelOpen } = useApp()
 
   if (currentPage === 'upload') return <UploadPage />
 
@@ -28,7 +28,7 @@ function Shell() {
           <div className="page-content">
             <Page />
           </div>
-          <RightPanel />
+          {panelOpen && <RightPanel />}
         </div>
       </div>
     </div>

@@ -9,9 +9,9 @@ import QuadrantMatrix       from '../components/charts/QuadrantMatrix'
 import EbitdaTable          from '../components/charts/EbitdaTable'
 import CompetitiveSection   from '../components/competitive/CompetitiveSection'
 
-function SectionHeader({ id, title, badge }) {
+function SectionHeader({ title, badge }) {
   return (
-    <div id={id} className="section-header" style={{ scrollMarginTop: 8 }}>
+    <div className="section-header">
       <span className="section-title">{title}</span>
       {badge && <span className="section-badge">{badge}</span>}
     </div>
@@ -19,7 +19,7 @@ function SectionHeader({ id, title, badge }) {
 }
 
 export default function Overview() {
-  const { isDataReady, navigate } = useApp()
+  const { isDataReady, navigate, activeSection } = useApp()
 
   useEffect(() => {
     if (!isDataReady) {
@@ -38,51 +38,85 @@ export default function Overview() {
     )
   }
 
+  const section = activeSection || 'overview'
+
+  // ── Full dashboard view (default) ──────────────────────────────────────────
+  if (section === 'overview') {
+    return (
+      <div className="overview-root">
+        <KpiRow />
+
+        <div className="overview-row1">
+          <div className="overview-col min-w-0">
+            <SectionHeader title="Financial Benchmarking" />
+            <div className="fin-inner-grid">
+              <FinancialRadarChart />
+              <RevenueLineChart />
+            </div>
+          </div>
+          <div className="overview-col min-w-0">
+            <SectionHeader title="Operational Benchmarking" />
+            <OperationalTable />
+          </div>
+        </div>
+
+        <div className="overview-row2">
+          <div className="overview-col min-w-0">
+            <SectionHeader title="Capital Efficiency Matrix" />
+            <QuadrantMatrix />
+          </div>
+          <div className="overview-col min-w-0">
+            <SectionHeader title="Margin Waterfall Benchmark" />
+            <EbitdaTable />
+          </div>
+        </div>
+
+        <div className="section">
+          <SectionHeader title="Competition Intelligence" />
+          <CompetitiveSection />
+        </div>
+      </div>
+    )
+  }
+
+  // ── Drill-down section pages ───────────────────────────────────────────────
   return (
     <div className="overview-root">
-
-      {/* ── KPI Strip ── */}
       <KpiRow />
 
-      {/* ── Row 1: Financial Benchmarking (radar+line) | Operational Benchmarking (table) ── */}
-      <div className="overview-row1">
-
-        <div id="financial-benchmarking" className="overview-col min-w-0">
-          <SectionHeader id="financial-benchmarking-hdr" title="Financial Benchmarking" />
+      {section === 'financial-benchmarking' && (
+        <div className="section">
+          <SectionHeader title="Financial Benchmarking" />
           <div className="fin-inner-grid">
             <FinancialRadarChart />
             <RevenueLineChart />
           </div>
         </div>
+      )}
 
-        <div id="operational-benchmarking" className="overview-col min-w-0">
-          <SectionHeader id="operational-benchmarking-hdr" title="Operational Benchmarking" />
+      {section === 'operational-benchmarking' && (
+        <div className="section">
+          <SectionHeader title="Operational Benchmarking" />
           <OperationalTable />
         </div>
+      )}
 
-      </div>
-
-      {/* ── Row 2: Capital Efficiency Matrix | Margin Waterfall Benchmark ── */}
-      <div className="overview-row2">
-
-        <div id="capital-efficiency" className="overview-col min-w-0">
-          <SectionHeader id="capital-efficiency-hdr" title="Capital Efficiency Matrix" />
-          <QuadrantMatrix />
+      {section === 'capital-efficiency' && (
+        <div className="section">
+          <SectionHeader title="Capital Efficiency" />
+          <div className="overview-row2">
+            <div className="overview-col min-w-0"><QuadrantMatrix /></div>
+            <div className="overview-col min-w-0"><EbitdaTable /></div>
+          </div>
         </div>
+      )}
 
-        <div id="operational-benchmarking-margin" className="overview-col min-w-0">
-          <SectionHeader title="Margin Waterfall Benchmark" />
-          <EbitdaTable />
+      {section === 'competitive-intelligence' && (
+        <div className="section">
+          <SectionHeader title="Competition Intelligence" />
+          <CompetitiveSection />
         </div>
-
-      </div>
-
-      {/* ── Competitive Intelligence Feed ── */}
-      <div id="competitive-intelligence" className="section">
-        <SectionHeader id="competitive-intelligence-hdr" title="Competition Intelligence" />
-        <CompetitiveSection />
-      </div>
-
+      )}
     </div>
   )
 }

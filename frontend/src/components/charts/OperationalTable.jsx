@@ -1,4 +1,5 @@
 import { useApp } from '../../context/AppContext'
+import { fyLabel, getWindowVal } from '../../utils/fy'
 
 const METRICS = [
   { key: 'asset_turn',   label: 'Asset Turnover',    fmt: v => `${Number(v).toFixed(2)}x`, higherBetter: true  },
@@ -41,11 +42,28 @@ function vsBest(val, best, higherBetter) {
 }
 
 export default function OperationalTable() {
-  const { companies, primaryCompany } = useApp()
+  const { companies, primaryCompany, metrics, selectedYears, selectedFY } = useApp()
 
-  const primary  = companies.find(c => c.name === primaryCompany)
-  const peers    = companies.filter(c => c.name !== primaryCompany)
-  const bestPeer = findBestPeer(peers, companies)
+  const primaryM = metrics[primaryCompany] || {}
+  const allYears = selectedFY
+    ? [selectedFY]
+    : (primaryM.years || []).slice(-selectedYears)
+  const displayYear = allYears.length ? fyLabel(allYears[allYears.length - 1]) : 'Latest'
+
+  function enrich(c) {
+    return {
+      ...c,
+      ...Object.fromEntries(
+        METRICS.map(({ key }) => [key, getWindowVal(metrics, c.name, key, allYears)])
+      ),
+    }
+  }
+
+  const primaryObj = companies.find(c => c.name === primaryCompany)
+  const primary    = primaryObj ? enrich(primaryObj) : null
+  const peers      = companies.filter(c => c.name !== primaryCompany).map(enrich)
+  const allComp    = [...(primary ? [primary] : []), ...peers]
+  const bestPeer   = findBestPeer(peers, allComp)
 
   const shortName = c => c.name.split(' ')[0]
 
@@ -53,7 +71,7 @@ export default function OperationalTable() {
     <div className="chart-card" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="chart-card-header">
         <span className="chart-card-title">Operational Benchmarking</span>
-        <span className="chart-card-sub">Latest year</span>
+        <span className="chart-card-sub">{displayYear} snapshot</span>
       </div>
 
       <div style={{ overflowX: 'auto', flex: 1 }}>
@@ -61,15 +79,15 @@ export default function OperationalTable() {
           <thead>
             <tr>
               <th style={{ minWidth: 110 }}>KPI</th>
-              {primary   && <th style={{ color: primary.color,   minWidth: 72, textAlign: 'right' }}>{shortName(primary)}</th>}
-              {bestPeer  && <th style={{ color: bestPeer.color,  minWidth: 72, textAlign: 'right' }}>Best ({shortName(bestPeer)})</th>}
+              {primary  && <th style={{ color: primaryObj?.color,  minWidth: 72, textAlign: 'right' }}>{shortName(primary)}</th>}
+              {bestPeer && <th style={{ color: bestPeer.color, minWidth: 72, textAlign: 'right' }}>Best ({shortName(bestPeer)})</th>}
               <th style={{ color: '#94a3b8', minWidth: 72, textAlign: 'right' }}>Ind. Median</th>
-              {primary   && <th style={{ minWidth: 60, textAlign: 'right' }}>vs Best</th>}
+              {primary  && <th style={{ minWidth: 60, textAlign: 'right' }}>vs Best</th>}
             </tr>
           </thead>
           <tbody>
             {METRICS.map(({ key, label, fmt, higherBetter }) => {
-              const allVals    = companies.map(c => c[key]).filter(v => v != null)
+              const allVals    = allComp.map(c => c[key]).filter(v => v != null)
               const medVal     = allVals.length ? median(allVals) : null
               const bestVal    = bestPeer?.[key]
               const primaryVal = primary?.[key]
@@ -78,25 +96,17 @@ export default function OperationalTable() {
               return (
                 <tr key={key}>
                   <td style={{ fontWeight: 600, fontSize: 11 }}>{label}</td>
-
-                  {/* Primary */}
                   <td style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-secondary)' }}>
                     {primaryVal != null ? fmt(primaryVal) : '—'}
                   </td>
-
-                  {/* Best peer */}
                   {bestPeer && (
                     <td style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, color: 'var(--green)' }}>
                       {bestVal != null ? fmt(bestVal) : '—'}
                     </td>
                   )}
-
-                  {/* Industry median */}
                   <td style={{ textAlign: 'right', fontSize: 11, color: '#94a3b8' }}>
                     {medVal != null ? fmt(medVal) : '—'}
                   </td>
-
-                  {/* vs Best delta */}
                   {primary && (() => {
                     if (diff == null) return <td style={{ textAlign: 'right' }}>—</td>
                     const isExact = Math.abs(diff) < 0.005

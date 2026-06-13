@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import {
-  BarChart2, Activity, TrendingUp, Target,
+  LayoutDashboard, BarChart2, Activity, TrendingUp, Target,
   ChevronLeft, ChevronRight, Layers,
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 
+const HOME_ITEM = { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, page: null }
+
 const NAV = [
-  { id: 'financial-benchmarking',   label: 'Financial',           icon: BarChart2,  page: null },
-  { id: 'operational-benchmarking', label: 'Operational',         icon: Activity,   page: null },
-  { id: 'capital-efficiency',       label: 'Capital Efficiency',  icon: TrendingUp, page: null },
-  { id: 'competitive-intelligence', label: 'Competitive Intel',   icon: Target,     page: null },
+  { id: 'financial-benchmarking',   label: 'Financial',          icon: BarChart2,  page: null },
+  { id: 'operational-benchmarking', label: 'Operational',        icon: Activity,   page: null },
+  { id: 'capital-efficiency',       label: 'Capital Efficiency', icon: TrendingUp, page: null },
+  { id: 'competitive-intelligence', label: 'Competitive Intel',  icon: Target,     page: null },
 ]
 
 const STUDIO_ITEM = { id: 'insight-studio', label: 'Insight Studio', icon: Layers, page: 'insight-studio' }
@@ -25,29 +27,42 @@ export default function Sidebar() {
     } else {
       if (currentPage !== 'overview') navigate('overview')
       setActiveSection(item.id)
-      // Scroll after brief delay so page renders first
-      setTimeout(() => {
-        const el = document.getElementById(item.id)
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 80)
     }
   }
 
   const isActive = (item) =>
-    item.page ? currentPage === item.page : (currentPage === 'overview' && activeSection === item.id)
+    item.page
+      ? currentPage === item.page
+      : currentPage === 'overview' && activeSection === item.id
 
   return (
     <nav className={`sidebar${collapsed ? ' collapsed' : ''}`}>
       {/* Logo */}
       <div className="sidebar-logo">
-        <div className="logo-icon">F</div>
+        <div className="logo-icon" style={{ fontSize: 11, letterSpacing: '-0.5px' }}>FD</div>
         {!collapsed && <span className="logo-text">FinCompare</span>}
       </div>
 
       {/* Main nav */}
       <div className="sidebar-nav">
+
+        {/* Dashboard home */}
         <div className="sidebar-nav-group">
-          {!collapsed && <div className="sidebar-group-label">Dashboard</div>}
+          <div
+            className={`nav-item${isActive(HOME_ITEM) ? ' active' : ''}`}
+            onClick={() => handleNav(HOME_ITEM)}
+            title={collapsed ? HOME_ITEM.label : undefined}
+          >
+            <HOME_ITEM.icon />
+            {!collapsed && <span className="nav-label">{HOME_ITEM.label}</span>}
+          </div>
+        </div>
+
+        <div className="sidebar-divider" />
+
+        {/* Section drill-downs */}
+        <div className="sidebar-nav-group">
+          {!collapsed && <div className="sidebar-group-label">Sections</div>}
           {NAV.map(item => (
             <div
               key={item.id}
@@ -61,7 +76,6 @@ export default function Sidebar() {
           ))}
         </div>
 
-        {/* Divider */}
         <div className="sidebar-divider" />
 
         {/* Insight Studio */}
@@ -81,6 +95,7 @@ export default function Sidebar() {
             )}
           </div>
         </div>
+
       </div>
 
       {/* Collapse toggle */}

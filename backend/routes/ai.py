@@ -55,19 +55,27 @@ Rules:
 async def insights():
     try:
         from context_builder import build_context
-        from ai_client import call_qwen_json_async
+        from services import groq_client
+        from ai_client import call_mistral_json_async, has_mistral
 
         ctx = build_context()
         if ctx == "No financial data loaded.":
             return {"insights": [], "metrics": [], "message": "No data uploaded yet."}
 
-        data = await call_qwen_json_async([
+        msgs = [
             {"role": "system", "content": (
                 "You are FinBot, an expert financial analyst for Indian industrial companies. "
                 "Return ONLY valid JSON as instructed — no markdown fences, no extra keys.\n\n" + ctx
             )},
             {"role": "user", "content": INSIGHTS_PROMPT},
-        ])
+        ]
+        try:
+            data = await groq_client.complete_json(msgs)
+        except groq_client.RateLimitError:
+            if not has_mistral():
+                raise ValueError("Groq rate limited and MISTRAL_API_KEY not configured.")
+            data = await call_mistral_json_async(msgs)
+
         if not data:
             raise ValueError("Model returned no data")
         return {
@@ -82,19 +90,27 @@ async def insights():
 async def summary():
     try:
         from context_builder import build_context
-        from ai_client import call_qwen_json_async
+        from services import groq_client
+        from ai_client import call_mistral_json_async, has_mistral
 
         ctx = build_context()
         if ctx == "No financial data loaded.":
             return {"bullets": [], "takeaway": "No data uploaded yet."}
 
-        data = await call_qwen_json_async([
+        msgs = [
             {"role": "system", "content": (
                 "You are FinBot, an expert financial analyst for Indian industrial companies. "
                 "Return ONLY valid JSON as instructed — no markdown fences, no extra keys.\n\n" + ctx
             )},
             {"role": "user", "content": SUMMARY_PROMPT},
-        ])
+        ]
+        try:
+            data = await groq_client.complete_json(msgs)
+        except groq_client.RateLimitError:
+            if not has_mistral():
+                raise ValueError("Groq rate limited and MISTRAL_API_KEY not configured.")
+            data = await call_mistral_json_async(msgs)
+
         if not data:
             raise ValueError("Model returned no data")
         return {
@@ -118,20 +134,28 @@ async def generate_report(req: ReportRequest):
     try:
         from context_builder import build_context
         from report_builder import build_report_prompt
-        from ai_client import call_qwen_json_async
+        from services import groq_client
+        from ai_client import call_mistral_json_async, has_mistral
 
         ctx = build_context()
         if ctx == "No financial data loaded.":
             return {"error": "No data uploaded yet."}
 
         prompt = build_report_prompt(req.report_type, req.companies, req.period)
-        data   = await call_qwen_json_async([
+        msgs   = [
             {"role": "system", "content": (
                 "You are FinBot, an expert financial analyst for Indian industrial companies. "
                 "Return ONLY valid JSON as instructed — no markdown fences, no extra keys.\n\n" + ctx
             )},
             {"role": "user", "content": prompt},
-        ])
+        ]
+        try:
+            data = await groq_client.complete_json(msgs)
+        except groq_client.RateLimitError:
+            if not has_mistral():
+                raise ValueError("Groq rate limited and MISTRAL_API_KEY not configured.")
+            data = await call_mistral_json_async(msgs)
+
         if not data:
             raise ValueError("Model returned unparseable response")
         return data

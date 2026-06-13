@@ -68,7 +68,7 @@ export default function AiInsightsPanel() {
 
       {loading && (
         <div style={{ color: 'var(--text-muted)', fontSize: 11, padding: '8px 0' }}>
-          Analysing data with Qwen…
+          Analysing data…
         </div>
       )}
 

@@ -1,147 +1,218 @@
 import { useApp } from '../../context/AppContext'
+import { fyLabel } from '../../utils/fy'
 
-function pct(v) { return v != null ? `${Number(v).toFixed(1)}%` : '—' }
-function cr(v)  { return v != null ? `₹${(v / 1000).toFixed(1)}k` : '—' }
-function pp(v, favorable) {
-  if (v == null) return null
-  const sign  = v > 0 ? '+' : ''
-  const color = (favorable ? v > 0 : v < 0) ? 'var(--green)' : 'var(--red)'
-  return <span style={{ color, fontWeight: 700, fontSize: 10 }}>{sign}{v.toFixed(1)} pp</span>
+function r1(v) { return Math.round(v * 10) / 10 }
+
+function fmtRev(v) {
+  if (v == null) return '—'
+  return Math.round(v).toLocaleString('en-IN')
 }
 
-function CostBar({ value, total, color }) {
-  if (!value || !total) return <div style={{ width: 48 }} />
-  const w = Math.min(100, (Math.abs(value) / total) * 100)
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <div style={{ width: 48, height: 5, background: 'rgba(0,0,0,0.07)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: `${w}%`, height: '100%', background: color, borderRadius: 3 }} />
-      </div>
-      <span style={{ fontSize: 10.5, color: 'var(--text-secondary)', minWidth: 32 }}>
-        {pct((value / total) * 100)}
-      </span>
-    </div>
-  )
-}
+const SEGS = [
+  { key: 'rawMat',  label: 'Raw Material Cost %',  color: '#ef4444', dimColor: 'rgba(239,68,68,0.10)', sign: '−' },
+  { key: 'empCost', label: 'Employee Cost %',       color: '#f97316', dimColor: 'rgba(249,115,22,0.10)', sign: '−' },
+  { key: 'other',   label: 'Other Expenses %',      color: '#f59e0b', dimColor: 'rgba(245,158,11,0.10)', sign: '−' },
+  { key: 'ebitda',  label: 'EBITDA Margin %',       color: '#16a34a', dimColor: 'rgba(22,163,74,0.10)',  sign: ''  },
+]
 
-function EbitdaBar({ value, total }) {
-  if (!value || !total) return <div style={{ width: 64 }} />
-  const w      = Math.min(100, Math.max(0, (value / total) * 100))
-  const pctVal = (value / total) * 100
-  const color  = pctVal >= 15 ? '#16a34a' : pctVal >= 10 ? '#d97706' : '#dc2626'
+function BarCell({ seg, val, maxVal }) {
+  const pct = maxVal > 0 ? Math.min((val / maxVal) * 100, 100) : 0
+  const showInside = pct > 38
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <div style={{ width: 52, height: 6, background: 'rgba(0,0,0,0.07)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: `${w}%`, height: '100%', background: color, borderRadius: 3 }} />
+    <td
+      style={{
+        padding: '10px 12px',
+        borderLeft: '1px solid var(--border)',
+        background: seg.dimColor,
+        verticalAlign: 'middle',
+        minWidth: 120,
+      }}
+    >
+      <div style={{ position: 'relative', height: 28 }}>
+        {/* Filled bar */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 0, top: 4,
+            width: `${pct}%`,
+            height: 20,
+            background: seg.color,
+            borderRadius: 3,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+          }}
+        >
+          {showInside && (
+            <span style={{ color: 'white', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', userSelect: 'none' }}>
+              {seg.sign}{val.toFixed(1)}%
+            </span>
+          )}
+        </div>
+
+        {/* Bridge line: from bar end to cell right edge */}
+        {seg.key !== 'ebitda' && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${pct}%`, right: 0,
+              top: 14,
+              height: 1,
+              background: seg.color,
+              opacity: 0.25,
+            }}
+          />
+        )}
+
+        {/* Outside label when bar is narrow */}
+        {!showInside && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `calc(${pct}% + 6px)`,
+              top: 4, height: 20,
+              display: 'flex', alignItems: 'center',
+              color: seg.color,
+              fontSize: 10, fontWeight: 700,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {seg.sign}{val.toFixed(1)}%
+          </div>
+        )}
       </div>
-      <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 36 }}>
-        {pct(pctVal)}
-      </span>
-    </div>
+    </td>
   )
 }
 
 export default function EbitdaTable() {
-  const { companies, primaryCompany, selectedCompanies } = useApp()
+  const { companies, primaryCompany, selectedCompanies, meta } = useApp()
+
   const visibleNames = [primaryCompany, ...selectedCompanies].filter(Boolean)
   const visible      = companies.filter(c => visibleNames.includes(c.name))
 
-  const primary = visible.find(c => c.name === primaryCompany)
-  const peers   = visible.filter(c => c.name !== primaryCompany)
-  const best    = peers.length
-    ? peers.reduce((a, b) => (b.ebitda_margin ?? 0) > (a.ebitda_margin ?? 0) ? b : a, peers[0])
-    : null
+  const rows = visible.map(c => {
+    if (!c.wf_sales) return null
+    const rawMat  = r1((c.wf_raw_mat  / c.wf_sales) * 100)
+    const empCost = r1((c.wf_emp_cost / c.wf_sales) * 100)
+    const ebitda  = r1(c.ebitda_margin || 0)
+    const other   = r1(Math.max(0, 100 - rawMat - empCost - ebitda))
+    return { name: c.name.split(' ')[0], fullName: c.name, color: c.color, revenue: c.wf_sales, rawMat, empCost, other, ebitda }
+  }).filter(Boolean)
 
-  // Per-cost driver as % of revenue
-  function costPct(c, field) {
-    if (!c.wf_sales || c[field] == null) return null
-    return (c[field] / c.wf_sales) * 100
+  const latestFY = meta?.latest_year ? fyLabel(meta.latest_year) : 'Latest'
+
+  if (!rows.length) {
+    return (
+      <div className="chart-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, color: 'var(--text-muted)', fontSize: 12 }}>
+        No P&amp;L data available
+      </div>
+    )
   }
+
+  // Scale each column to its own max (so bars always fill meaningfully)
+  const maxVals = {}
+  SEGS.forEach(s => {
+    maxVals[s.key] = Math.max(...rows.map(r => r[s.key] || 0), 1) * 1.08
+  })
+
+  // Gap analysis vs best EBITDA peer
+  const primary = rows.find(r => r.fullName === primaryCompany)
+  const peers   = rows.filter(r => r.fullName !== primaryCompany)
+  const best    = peers.length ? peers.reduce((a, b) => b.ebitda > a.ebitda ? b : a, peers[0]) : null
 
   return (
     <div className="chart-card">
       <div className="chart-card-header">
         <span className="chart-card-title">Margin Waterfall Benchmark</span>
-        <span className="chart-card-sub">Latest year — cost breakdown</span>
+        <span className="chart-card-sub">{latestFY} TTM — % of Revenue</span>
       </div>
-      <div style={{ overflowX: 'auto' }}>
-        <table className="fd-table" style={{ minWidth: 480 }}>
+
+      <div style={{ overflowX: 'auto', marginTop: 4 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr>
-              <th style={{ minWidth: 100 }}>Company</th>
-              <th style={{ textAlign: 'right' }}>Revenue</th>
-              <th style={{ minWidth: 100 }}>Raw Mat %</th>
-              <th style={{ minWidth: 100 }}>Emp Cost %</th>
-              <th style={{ minWidth: 100 }}>Other OpEx %</th>
-              <th style={{ minWidth: 110 }}>EBITDA Margin</th>
+              <th style={TH({ textAlign: 'left', width: 130 })}>Company</th>
+              <th style={TH({ textAlign: 'right', width: 88 })}>
+                Revenue<br />
+                <span style={{ fontWeight: 400, opacity: 0.7 }}>(₹ Cr)</span>
+              </th>
+              {SEGS.map(seg => (
+                <th key={seg.key} style={TH({ borderLeft: '1px solid var(--border)', background: seg.dimColor })}>
+                  {seg.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {visible.map(c => {
-              const rev       = c.wf_sales
-              const ebitda_abs = c.ebitda_margin != null ? (c.ebitda_margin / 100) * (rev || 0) : null
-              return (
-                <tr key={c.name}>
-                  <td>
-                    <span className="company-dot" style={{ background: c.color }} />
-                    {c.name.split(' ')[0]}
-                  </td>
-                  <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 11 }}>{cr(rev)}</td>
-                  <td><CostBar value={c.wf_raw_mat}    total={rev} color="#ef4444" /></td>
-                  <td><CostBar value={c.wf_emp_cost}   total={rev} color="#f97316" /></td>
-                  <td><CostBar value={c.wf_other_opex} total={rev} color="#f59e0b" /></td>
-                  <td><EbitdaBar value={ebitda_abs} total={rev} /></td>
-                </tr>
-              )
-            })}
+            {rows.map((row, ri) => (
+              <tr key={row.fullName} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                {/* Company name */}
+                <td style={{ padding: '10px 8px', verticalAlign: 'middle' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.color, flexShrink: 0, display: 'inline-block' }} />
+                    <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--text-primary)' }}>{row.name}</span>
+                  </span>
+                </td>
+
+                {/* Revenue */}
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 11.5, color: 'var(--text-muted)', verticalAlign: 'middle', fontWeight: 500 }}>
+                  {fmtRev(row.revenue)}
+                </td>
+
+                {/* Cost + EBITDA bars */}
+                {SEGS.map(seg => (
+                  <BarCell key={seg.key} seg={seg} val={row[seg.key]} maxVal={maxVals[seg.key]} />
+                ))}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
       {/* Gap analysis footer */}
       {primary && best && (() => {
-        const ebitdaGap = (primary.ebitda_margin ?? 0) - (best.ebitda_margin ?? 0)
-
-        // Attribution: positive = primary is worse (higher cost %)
-        const rmGap    = (costPct(primary, 'wf_raw_mat')    ?? 0) - (costPct(best, 'wf_raw_mat')    ?? 0)
-        const empGap   = (costPct(primary, 'wf_emp_cost')   ?? 0) - (costPct(best, 'wf_emp_cost')   ?? 0)
-        const opexGap  = (costPct(primary, 'wf_other_opex') ?? 0) - (costPct(best, 'wf_other_opex') ?? 0)
-        const bestName = best.name.split(' ')[0]
-
+        const ebitdaGap = r1(primary.ebitda  - best.ebitda)
+        const deltas    = [
+          { dot: '#ef4444', label: 'Raw Mat',  val: r1(best.rawMat  - primary.rawMat)  },
+          { dot: '#f97316', label: 'Emp Cost', val: r1(best.empCost - primary.empCost) },
+          { dot: '#f59e0b', label: 'Other',    val: r1(best.other   - primary.other)   },
+        ]
         return (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
-                vs {bestName} (best peer)
+          <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
+              {primary.name} vs {best.name} (best peer):
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: ebitdaGap >= 0 ? 'var(--green)' : 'var(--red)' }}>
+              {ebitdaGap >= 0 ? '+' : ''}{ebitdaGap} pp EBITDA
+            </span>
+            {deltas.map(({ dot, label, val }) => (
+              <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, display: 'inline-block' }} />
+                <span style={{ color: 'var(--text-muted)' }}>{label}:</span>
+                <span style={{ fontWeight: 700, color: Math.abs(val) < 0.05 ? 'var(--text-muted)' : val > 0 ? 'var(--red)' : 'var(--green)' }}>
+                  {val > 0 ? '+' : ''}{val} pp
+                </span>
               </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: ebitdaGap >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                {ebitdaGap >= 0 ? '+' : ''}{ebitdaGap.toFixed(1)} pp EBITDA
-              </span>
-            </div>
-            {/* Driver attribution */}
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
-                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Raw Mat:</span>
-                {pp(-rmGap, true)}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', display: 'inline-block' }} />
-                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Emp Cost:</span>
-                {pp(-empGap, true)}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
-                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Other OpEx:</span>
-                {pp(-opexGap, true)}
-              </div>
-              <div style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-muted)', alignSelf: 'center' }}>
-                +ve = primary lower cost (better)
-              </div>
-            </div>
+            ))}
           </div>
         )
       })()}
     </div>
   )
+}
+
+function TH(extra = {}) {
+  return {
+    padding: '7px 10px',
+    textAlign: 'center',
+    fontSize: 10.5,
+    fontWeight: 600,
+    color: '#64748b',
+    borderBottom: '2px solid var(--border)',
+    whiteSpace: 'nowrap',
+    ...extra,
+  }
 }

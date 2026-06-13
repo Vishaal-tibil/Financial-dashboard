@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, LogarithmicScale,
-  PointElement, LineElement, BarElement, BubbleController, ScatterController,
+  PointElement, LineElement, BarElement, BarController, BubbleController, ScatterController,
   RadialLinearScale, ArcElement, Filler,
   Tooltip, Legend,
 } from 'chart.js'
@@ -13,7 +13,7 @@ import './styles/globals.css'
 
 ChartJS.register(
   CategoryScale, LinearScale, LogarithmicScale,
-  PointElement, LineElement, BarElement, BubbleController, ScatterController,
+  PointElement, LineElement, BarElement, BarController, BubbleController, ScatterController,
   RadialLinearScale, ArcElement, Filler,
   Tooltip, Legend,
 )
