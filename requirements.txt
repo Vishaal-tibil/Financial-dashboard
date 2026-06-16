@@ -7,3 +7,6 @@ openpyxl
 numpy
 python-dotenv
 openai
+groq
+tavily-python
+sse-starlette

@@ -5,14 +5,14 @@ import { useApp } from '../context/AppContext'
 const STAGE_PCT = { uploading: 15, processing: 35, computing: 65, generating: 85, ready: 100 }
 
 export default function UploadPage() {
-  const { navigate, loadData, isDataReady, goBack } = useApp()
-  const [dragOver, setDragOver]     = useState(false)
-  const [uploading, setUploading]   = useState(false)
-  const [stage, setStage]           = useState('')
-  const [pct, setPct]               = useState(0)
-  const [error, setError]           = useState('')
-  const [uploaded, setUploaded]     = useState([])  // companies successfully loaded
-  const inputRef                    = useRef()
+  const { navigate, loadData, isDataReady } = useApp()
+  const [dragOver, setDragOver]   = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [stage, setStage]         = useState('')
+  const [pct, setPct]             = useState(0)
+  const [error, setError]         = useState('')
+  const [uploaded, setUploaded]   = useState([])
+  const inputRef                  = useRef()
 
   const handleFile = useCallback((file) => {
     if (!file) return
@@ -28,9 +28,6 @@ export default function UploadPage() {
     const form = new FormData()
     form.append('file', file)
 
-    const es = new EventSource('')   // we use fetch + ReadableStream for SSE with POST
-    es.close()                       // close the dummy, we'll do it manually below
-
     fetch('/api/upload', { method: 'POST', body: form })
       .then(res => {
         const reader = res.body.getReader()
@@ -42,25 +39,24 @@ export default function UploadPage() {
             if (done) { setUploading(false); return }
             buf += dec.decode(value, { stream: true })
             const parts = buf.split('\n\n')
-            buf = parts.pop()         // keep incomplete chunk
+            buf = parts.pop()
 
             parts.forEach(part => {
               const dataLine = part.split('\n').find(l => l.startsWith('data:'))
               const evtLine  = part.split('\n').find(l => l.startsWith('event:'))
               if (!dataLine) return
               try {
-                const msg  = JSON.parse(dataLine.replace('data:', '').trim())
-                const evt  = evtLine ? evtLine.replace('event:', '').trim() : 'progress'
-                const p    = msg.pct ?? STAGE_PCT[msg.stage] ?? pct
-                setPct(p)
+                const msg = JSON.parse(dataLine.replace('data:', '').trim())
+                const evt = evtLine ? evtLine.replace('event:', '').trim() : 'progress'
+                setPct(msg.pct ?? STAGE_PCT[msg.stage] ?? 0)
                 setStage(msg.message || msg.stage || '')
 
                 if (evt === 'ready') {
                   setUploading(false)
-                  // Extract company name from "'{name}' loaded" message
                   const match = msg.message.match(/'(.+?)'/)
                   if (match) setUploaded(u => [...u.filter(x => x !== match[1]), match[1]])
-                  loadData()
+                  // .then() because this forEach callback cannot be async
+                  loadData().then(ok => { if (ok) navigate('overview') })
                 }
                 if (evt === 'error') {
                   setUploading(false)
@@ -74,9 +70,9 @@ export default function UploadPage() {
         return pump()
       })
       .catch(e => { setUploading(false); setError(e.message) })
-  }, [loadData, pct])
+  }, [loadData, navigate])
 
-  const onDrop = (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }
+  const onDrop     = (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }
   const onDragOver = (e) => { e.preventDefault(); setDragOver(true) }
 
   async function loadSample() {
@@ -86,7 +82,8 @@ export default function UploadPage() {
     setPct(50)
     try {
       await fetch('/api/load-sample', { method: 'POST' })
-      await loadData()
+      const ok = await loadData()
+      if (ok) { navigate('overview'); return }
       setPct(100)
       setStage('Sample data loaded')
       setUploaded(['Carborundum', 'Grindwell', 'SKF', 'Timken', 'Wendt'])
@@ -98,7 +95,6 @@ export default function UploadPage() {
 
   return (
     <div className="upload-page">
-      {/* Back button — shown when navigated from dashboard */}
       {isDataReady && (
         <button
           onClick={() => navigate('overview')}
@@ -112,7 +108,6 @@ export default function UploadPage() {
         </button>
       )}
 
-      {/* Logo */}
       <div className="upload-logo">
         <div className="upload-logo-icon">F</div>
         <span className="upload-logo-text">FinCompare</span>
@@ -125,7 +120,6 @@ export default function UploadPage() {
         Upload company financials to start benchmarking
       </p>
 
-      {/* Drop zone */}
       <div
         className={`upload-box${dragOver ? ' drag-over' : ''}`}
         onDrop={onDrop}
@@ -140,20 +134,13 @@ export default function UploadPage() {
           style={{ display: 'none' }}
           onChange={e => handleFile(e.target.files[0])}
         />
-        <div className="upload-icon-wrap">
-          <Upload size={44} />
-        </div>
+        <div className="upload-icon-wrap"><Upload size={44} /></div>
         <div className="upload-title">Drop your Excel file here</div>
-        <div className="upload-sub">
-          One company per upload — upload multiple to benchmark side-by-side
-        </div>
-        <button className="btn-browse" disabled={uploading}>
-          Browse File
-        </button>
+        <div className="upload-sub">One company per upload — upload multiple to benchmark side-by-side</div>
+        <button className="btn-browse" disabled={uploading}>Browse File</button>
         <div className="upload-hint">Supports .xlsx and .xls — max 100 MB</div>
       </div>
 
-      {/* Progress bar */}
       {uploading && (
         <div className="upload-progress">
           <div className="progress-label">{stage}</div>
@@ -163,10 +150,8 @@ export default function UploadPage() {
         </div>
       )}
 
-      {/* Error */}
       {error && <div className="upload-error">{error}</div>}
 
-      {/* Uploaded companies */}
       {uploaded.length > 0 && (
         <div className="uploaded-list">
           {uploaded.map(name => (
@@ -185,7 +170,6 @@ export default function UploadPage() {
         </div>
       )}
 
-      {/* Load sample */}
       {uploaded.length === 0 && !uploading && (
         <button className="btn-sample" onClick={loadSample}>
           Or load sample data (5 companies)

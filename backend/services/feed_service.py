@@ -1,7 +1,12 @@
 """
 Competitor Intelligence Feed service.
-For each competitor: Tavily news search → per-article Groq classification
+For each competitor: Tavily news search → Groq relevance + classification
 → rank by recency_weight × impact_score → cache with 6-hour TTL.
+
+Relevance is enforced via an `is_relevant` flag inside the Groq classification
+call — no extra round-trip. The LLM reads the full article content and marks
+articles that are not primarily about the given company as irrelevant; those
+are silently dropped before being stored in the cache.
 """
 from __future__ import annotations
 
@@ -10,7 +15,7 @@ import datetime as dt
 import json
 import re
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import AsyncIterator, Optional
 
 from . import groq_client
 from .tavily_client import search_news
@@ -29,10 +34,13 @@ def _max_concurrent() -> int:
 _ARTICLE_SYSTEM = (
     "You classify a single news article about a company. "
     "Return STRICT JSON only with keys: "
+    "is_relevant (boolean — true ONLY if this article is primarily about the "
+    "given company; false if the company is only briefly mentioned or the article "
+    "is mainly about a different organisation), "
     'sentiment ("Positive"|"Neutral"|"Negative"), '
-    "category (short string, e.g. Earnings/Expansion/Regulatory), "
+    "category (short string, e.g. Earnings/Expansion/Regulatory/Partnership), "
     "impact_score (number 0-10), "
-    "summary (1-2 sentences), "
+    "summary (1-2 sentences focused on the given company), "
     "key_entities (array of strings)."
 )
 
@@ -74,7 +82,7 @@ def _recency_weight(published: Optional[str]) -> float:
         return 0.6
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
-            d = dt.datetime.strptime(published[:len(fmt)], fmt)
+            d   = dt.datetime.strptime(published[:len(fmt)], fmt)
             age = max((dt.datetime.utcnow() - d).days, 0)
             return max(0.3, 1.0 - age / 30.0)
         except Exception:
@@ -82,25 +90,37 @@ def _recency_weight(published: Optional[str]) -> float:
     return 0.6
 
 
-async def _classify(article: dict, company_name: str, sem: asyncio.Semaphore) -> Optional[dict]:
-    title    = article.get("title", "")
-    url      = article.get("url", "")
-    content  = (article.get("raw_content") or article.get("content") or "")[:3000]
+async def _classify(article: dict, company_name: str,
+                    sem: asyncio.Semaphore) -> Optional[dict]:
+    title     = article.get("title", "")
+    url       = article.get("url", "")
+    content   = (article.get("raw_content") or article.get("content") or "")[:3000]
     published = article.get("published_date")
 
     classification = {
-        "sentiment": "Neutral", "category": "General", "impact_score": 5.0,
-        "summary": (article.get("content") or title)[:240], "key_entities": [],
+        "sentiment":    "Neutral",
+        "category":     "General",
+        "impact_score": 5.0,
+        "summary":      (article.get("content") or title)[:240],
+        "key_entities": [],
     }
 
     if groq_client.has_groq():
         async with sem:
             try:
                 raw = await groq_client.complete_json([
-                    {"role": "system",  "content": _ARTICLE_SYSTEM},
-                    {"role": "user",    "content": f"Company: {company_name}\nHeadline: {title}\nArticle:\n{content}"},
+                    {"role": "system", "content": _ARTICLE_SYSTEM},
+                    {"role": "user",   "content": (
+                        f"Company: {company_name}\n"
+                        f"Headline: {title}\n"
+                        f"Article:\n{content}"
+                    )},
                 ])
                 if raw:
+                    # Drop articles the LLM deems not primarily about this company
+                    if raw.get("is_relevant") is False:
+                        return None
+
                     classification.update({
                         "sentiment":    raw.get("sentiment",    classification["sentiment"]),
                         "category":     raw.get("category",     classification["category"]),
@@ -113,23 +133,24 @@ async def _classify(article: dict, company_name: str, sem: asyncio.Semaphore) ->
 
     score = _recency_weight(published) * classification["impact_score"]
     return {
-        "company_id":    company_name,
-        "company_name":  company_name,
-        "title":         title,
-        "url":           url,
-        "summary":       classification["summary"],
+        "company_id":     company_name,
+        "company_name":   company_name,
+        "title":          title,
+        "url":            url,
+        "summary":        classification["summary"],
         "published_date": published,
-        "sentiment":     classification["sentiment"],
-        "category":      classification["category"],
-        "impact_score":  classification["impact_score"],
-        "key_entities":  classification["key_entities"],
-        "score":         round(score, 2),
+        "sentiment":      classification["sentiment"],
+        "category":       classification["category"],
+        "impact_score":   classification["impact_score"],
+        "key_entities":   classification["key_entities"],
+        "score":          round(score, 2),
     }
 
 
 async def _fetch_one(company_name: str, sem: asyncio.Semaphore) -> list[dict]:
     query    = _search_query(company_name)
-    articles = await search_news(f"{query} news", days=30, max_results=8)
+    # Fetch more articles to compensate for Groq relevance filtering
+    articles = await search_news(f"{query} news", days=30, max_results=12)
     tasks    = [_classify(a, company_name, sem) for a in articles]
     return [c for c in await asyncio.gather(*tasks) if c]
 
@@ -150,10 +171,10 @@ def get_cached_feed(competitor_names: list[str]) -> tuple[list[dict], bool]:
 
 async def stream_refresh(competitor_names: list[str]) -> AsyncIterator[dict]:
     """SSE generator: progress per company, then final cards event."""
-    sem   = asyncio.Semaphore(_max_concurrent())
-    cache = _load_cache()
+    sem       = asyncio.Semaphore(_max_concurrent())
+    cache     = _load_cache()
     all_cards: list[dict] = []
-    total = len(competitor_names)
+    total     = len(competitor_names)
 
     for idx, name in enumerate(competitor_names, start=1):
         yield {"type": "progress", "step": idx, "total": total,

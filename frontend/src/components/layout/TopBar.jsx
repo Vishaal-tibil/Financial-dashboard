@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import { Download, FileText, Image, ChevronDown, Sparkles } from 'lucide-react'
 import { toPng } from 'html-to-image'
 import { useApp } from '../../context/AppContext'
 import { fyLabel, parseQLabel } from '../../utils/fy'
+import { useHealthScore } from '../../hooks/useHealthScore'
 
 function shortName(name) {
   if (!name) return ''
@@ -72,6 +73,16 @@ export default function TopBar() {
     selectedQuarter,   setSelectedQuarter,
     panelOpen,         setPanelOpen,
   } = useApp()
+
+  const health   = useHealthScore()
+  const stripRef = useRef(null)
+
+  // Animate the strip color directly — CSS var changes don't trigger transitions
+  useLayoutEffect(() => {
+    if (stripRef.current) {
+      stripRef.current.style.backgroundColor = health?.strip ?? 'transparent'
+    }
+  }, [health?.strip])
 
   const [showDlMenu,  setShowDlMenu]  = useState(false)
   const [showFYMenu,  setShowFYMenu]  = useState(false)
@@ -212,6 +223,9 @@ export default function TopBar() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <header className="topbar">
+
+      {/* 3px animated health strip at very top */}
+      <div ref={stripRef} className="topbar-health-strip" />
 
       {/* ── Zone 1: Primary company ── */}
       {primaryObj && (

@@ -3,12 +3,11 @@ import { RefreshCw, ExternalLink, Newspaper } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 
 const SENTIMENT_STYLE = {
-  Positive: { background: 'rgba(22,163,74,0.08)',  color: '#16a34a' },
-  Negative: { background: 'rgba(220,38,38,0.08)',  color: '#dc2626' },
+  Positive: { background: 'rgba(22,163,74,0.08)',   color: '#16a34a' },
+  Negative: { background: 'rgba(220,38,38,0.08)',   color: '#dc2626' },
   Neutral:  { background: 'rgba(100,116,139,0.08)', color: '#64748b' },
 }
 
-// Stream an SSE POST request
 async function streamSSE(url, body, onEvent) {
   const res = await fetch(url, {
     method:  'POST',
@@ -27,9 +26,7 @@ async function streamSSE(url, body, onEvent) {
     buffer = parts.pop()
     for (const part of parts) {
       const line = part.replace(/^data:\s*/, '').trim()
-      if (line) {
-        try { onEvent(JSON.parse(line)) } catch {}
-      }
+      if (line) { try { onEvent(JSON.parse(line)) } catch {} }
     }
   }
 }
@@ -50,7 +47,6 @@ function NewsCard({ card }) {
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(37,99,235,0.3)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.1)' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' }}
     >
-      {/* Company + sentiment */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           {card.company_name.split(' ')[0]}
@@ -59,20 +55,14 @@ function NewsCard({ card }) {
           {card.sentiment}
         </span>
       </div>
-
-      {/* Title */}
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4, marginBottom: 5,
         display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
         {card.title}
       </div>
-
-      {/* Summary */}
       <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0,
         display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
         {card.summary}
       </p>
-
-      {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
         <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: 'var(--bg-card-2)', color: 'var(--text-muted)' }}>
           {card.category}
@@ -91,37 +81,40 @@ function NewsCard({ card }) {
 }
 
 export default function CompetitiveSection() {
-  const { selectedCompanies, isDataReady } = useApp()
-  const [cards,     setCards]     = useState([])
-  const [streaming, setStreaming] = useState(false)
-  const [progress,  setProgress]  = useState(null)
-  const [error,     setError]     = useState(null)
-  const [showAll,   setShowAll]   = useState(false)
+  const { primaryCompany, selectedCompanies, isDataReady } = useApp()
 
-  // Load cached feed on mount / when companies change
+  // Include primary company so its own news appears, not just competitor news
+  const allCompanies = [primaryCompany, ...selectedCompanies].filter(Boolean)
+
+  const [cards,    setCards]    = useState([])
+  const [streaming, setStreaming] = useState(false)
+  const [progress, setProgress] = useState(null)
+  const [error,    setError]    = useState(null)
+  const [showAll,  setShowAll]  = useState(false)
+
+  // Load from cache on mount / when companies change
   const loadCached = useCallback(async () => {
-    if (!selectedCompanies.length) return
+    if (!allCompanies.length) return
     try {
-      const res  = await fetch(`/api/feed/cached?competitors=${encodeURIComponent(selectedCompanies.join(','))}`)
+      const res  = await fetch(`/api/feed/cached?competitors=${encodeURIComponent(allCompanies.join(','))}`)
       const data = await res.json()
       if (data.cards?.length) setCards(data.cards)
     } catch {}
-  }, [selectedCompanies])
+  }, [allCompanies.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isDataReady) loadCached()
   }, [isDataReady, loadCached])
 
   async function refresh() {
-    if (!selectedCompanies.length || streaming) return
+    if (!allCompanies.length || streaming) return
     setStreaming(true)
     setProgress('Starting…')
     setError(null)
-
     try {
       await streamSSE(
         '/api/feed/refresh',
-        { competitors: selectedCompanies },
+        { competitors: allCompanies },
         ev => {
           if (ev.type === 'progress') setProgress(ev.message)
           else if (ev.type === 'done') {
@@ -142,7 +135,6 @@ export default function CompetitiveSection() {
 
   return (
     <div className="chart-card">
-      {/* Header */}
       <div className="chart-card-header">
         <span className="chart-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Newspaper size={13} style={{ color: 'var(--accent)' }} />
@@ -154,12 +146,12 @@ export default function CompetitiveSection() {
           )}
           <button
             onClick={refresh}
-            disabled={streaming || !selectedCompanies.length}
+            disabled={streaming || !allCompanies.length}
             style={{
               display: 'flex', alignItems: 'center', gap: 4,
               fontSize: 11, fontWeight: 500, color: 'var(--accent)',
               background: 'none', border: 'none', cursor: 'pointer',
-              opacity: (streaming || !selectedCompanies.length) ? 0.4 : 1,
+              opacity: (streaming || !allCompanies.length) ? 0.4 : 1,
               padding: '3px 0',
             }}
           >
@@ -178,21 +170,23 @@ export default function CompetitiveSection() {
       )}
 
       {/* Error */}
-      {error && (
+      {error && !streaming && (
         <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 10 }}>
           {error} —{' '}
           <span onClick={refresh} style={{ cursor: 'pointer', textDecoration: 'underline' }}>retry</span>
         </div>
       )}
 
-      {/* Empty states */}
-      {!streaming && !cards.length && !selectedCompanies.length && (
+      {/* Empty: no data loaded */}
+      {!streaming && !cards.length && !allCompanies.length && (
         <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 12 }}>
           <Newspaper size={28} style={{ opacity: 0.2, marginBottom: 8 }} />
-          <div>Add competitors in the top bar, then click Refresh</div>
+          <div>Upload company data to see the intelligence feed</div>
         </div>
       )}
-      {!streaming && !cards.length && selectedCompanies.length > 0 && !error && (
+
+      {/* Empty: companies present but no cache yet */}
+      {!streaming && !cards.length && allCompanies.length > 0 && !error && (
         <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 12 }}>
           <Newspaper size={28} style={{ opacity: 0.2, marginBottom: 8 }} />
           <div style={{ marginBottom: 10 }}>No cached news yet</div>
@@ -200,7 +194,7 @@ export default function CompetitiveSection() {
             onClick={refresh}
             style={{ padding: '6px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer' }}
           >
-            Fetch news (requires TAVILY_API_KEY)
+            Fetch latest news
           </button>
         </div>
       )}

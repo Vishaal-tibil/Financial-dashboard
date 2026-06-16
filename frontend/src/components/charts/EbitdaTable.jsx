@@ -1,3 +1,4 @@
+import { Star } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { fyLabel } from '../../utils/fy'
 
@@ -123,6 +124,28 @@ export default function EbitdaTable() {
   const peers   = rows.filter(r => r.fullName !== primaryCompany)
   const best    = peers.length ? peers.reduce((a, b) => b.ebitda > a.ebitda ? b : a, peers[0]) : null
 
+  // AI Insight
+  function generateInsight() {
+    if (!primary) return null
+    if (!best) {
+      return `${primary.name}'s EBITDA margin stands at ${primary.ebitda.toFixed(1)}%, with raw material costs at ${primary.rawMat.toFixed(1)}% of revenue.`
+    }
+    const gap  = r1(primary.ebitda - best.ebitda)
+    const sign = gap >= 0 ? 'ahead of' : 'behind'
+    const drivers = [
+      { name: 'raw material', val: best.rawMat  - primary.rawMat  },
+      { name: 'employee',     val: best.empCost - primary.empCost },
+      { name: 'other',        val: best.other   - primary.other   },
+    ].sort((a, b) => Math.abs(b.val) - Math.abs(a.val))
+    const top = drivers[0]
+    if (Math.abs(gap) < 0.5) {
+      return `${primary.name} is on par with ${best.name} on EBITDA margin (${primary.ebitda.toFixed(1)}% vs ${best.ebitda.toFixed(1)}%), with comparable cost structures.`
+    }
+    const dir = top.val > 0 ? 'higher' : 'lower'
+    return `${primary.name}'s EBITDA margin of ${primary.ebitda.toFixed(1)}% is ${Math.abs(gap).toFixed(1)} pp ${sign} ${best.name} (${best.ebitda.toFixed(1)}%), primarily driven by ${dir} ${top.name} costs.`
+  }
+  const insight = generateInsight()
+
   return (
     <div className="chart-card">
       <div className="chart-card-header">
@@ -200,6 +223,26 @@ export default function EbitdaTable() {
           </div>
         )
       })()}
+
+      {/* AI Insight */}
+      {insight && (
+        <div style={{
+          marginTop: 12,
+          padding: '9px 13px',
+          background: 'rgba(99,102,241,0.06)',
+          border: '1px solid rgba(99,102,241,0.18)',
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 9,
+        }}>
+          <Star size={13} style={{ color: '#7c3aed', fill: '#7c3aed', flexShrink: 0, marginTop: 1 }} />
+          <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>
+            <strong style={{ color: '#7c3aed' }}>AI Insight: </strong>
+            {insight}
+          </p>
+        </div>
+      )}
     </div>
   )
 }

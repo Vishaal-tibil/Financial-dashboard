@@ -3,21 +3,21 @@ import { createContext, useContext, useState, useCallback, useEffect } from 'rea
 const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
-  const [currentPage, setCurrentPage]           = useState('upload')
-  const [navHistory, setNavHistory]             = useState([])
-  const [companies, setCompanies]               = useState([])
-  const [metrics, setMetrics]                   = useState({})
-  const [meta, setMeta]                         = useState(null)
-  const [primaryCompany, setPrimaryCompany]     = useState(null)
+  const [currentPage, setCurrentPage]             = useState('connecting')
+  const [navHistory, setNavHistory]               = useState([])
+  const [companies, setCompanies]                 = useState([])
+  const [metrics, setMetrics]                     = useState({})
+  const [meta, setMeta]                           = useState(null)
+  const [primaryCompany, setPrimaryCompany]       = useState(null)
   const [selectedCompanies, setSelectedCompanies] = useState([])
-  const [selectedYears, setSelectedYears]       = useState(5)
-  const [activeSection, setActiveSection]       = useState('overview')
-  const [selectedFY, setSelectedFY]             = useState(null)   // null = range, int = pinned FY end-year
-  const [selectedQuarter, setSelectedQuarter]   = useState(null)   // null = full year, 1-4
-  const [isDataReady, setIsDataReady]           = useState(false)
-  const [aiInsights, setAiInsights]             = useState(null)
-  const [chatHistory, setChatHistory]           = useState([])
-  const [panelOpen, setPanelOpen]               = useState(false)
+  const [selectedYears, setSelectedYears]         = useState(5)
+  const [activeSection, setActiveSection]         = useState('overview')
+  const [selectedFY, setSelectedFY]               = useState(null)
+  const [selectedQuarter, setSelectedQuarter]     = useState(null)
+  const [isDataReady, setIsDataReady]             = useState(false)
+  const [aiInsights, setAiInsights]               = useState(null)
+  const [chatHistory, setChatHistory]             = useState([])
+  const [panelOpen, setPanelOpen]                 = useState(false)
 
   const navigate = useCallback((page) => {
     setNavHistory(h => [...h, currentPage])
@@ -39,37 +39,53 @@ export function AppProvider({ children }) {
         fetch('/api/metrics'),
         fetch('/api/meta'),
       ])
+      if (!cRes.ok || !mRes.ok || !metaRes.ok) return false
+
       const c = await cRes.json()
       const m = await mRes.json()
       const d = await metaRes.json()
+
+      if (!Array.isArray(c)) return false
 
       setCompanies(c)
       setMetrics(m)
       setMeta(d)
       setIsDataReady(true)
-
       if (c.length > 0) {
         setPrimaryCompany(c[0].name)
-        setSelectedCompanies([])   // user manually picks competitors
+        setSelectedCompanies([])
       }
       return true
-    } catch (e) {
-      console.error('loadData failed:', e)
+    } catch {
       return false
     }
   }, [])
 
-  // On mount: check if backend has data already, skip upload page if so
   useEffect(() => {
-    fetch('/api/status')
-      .then(r => r.json())
-      .then(async d => {
-        if (d.ready) {
-          await loadData()
-          setCurrentPage('overview')
+    let alive = true
+
+    async function poll() {
+      while (alive) {
+        try {
+          const r = await fetch('/api/status')
+          const d = await r.json()
+          if (!alive) return
+          if (d.ready) {
+            const ok = await loadData()
+            if (alive) setCurrentPage(ok ? 'overview' : 'upload')
+          } else {
+            if (alive) setCurrentPage('upload')
+          }
+          return // stop polling once backend responded
+        } catch {
+          // backend not reachable yet — wait 2s then retry
+          await new Promise(res => setTimeout(res, 2000))
         }
-      })
-      .catch(() => {})
+      }
+    }
+
+    poll()
+    return () => { alive = false }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

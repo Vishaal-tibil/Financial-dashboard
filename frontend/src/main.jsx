@@ -11,6 +11,21 @@ import App from './App.jsx'
 import './styles/typography.css'
 import './styles/globals.css'
 
+// In production (Firebase Hosting), VITE_API_URL is set to the EC2 backend URL.
+// Intercepts /api/* fetches and prepends the full EC2 origin so the built frontend
+// reaches the EC2 instance. In development this env var is unset, so Vite's proxy
+// handles /api/* as usual — no code change needed in any component.
+const _API_BASE = import.meta.env.VITE_API_URL || ''
+if (_API_BASE) {
+  const _origFetch = window.fetch.bind(window)
+  window.fetch = (input, init) => {
+    if (typeof input === 'string' && input.startsWith('/api')) {
+      return _origFetch(_API_BASE + input, init)
+    }
+    return _origFetch(input, init)
+  }
+}
+
 ChartJS.register(
   CategoryScale, LinearScale, LogarithmicScale,
   PointElement, LineElement, BarElement, BarController, BubbleController, ScatterController,
@@ -19,6 +34,8 @@ ChartJS.register(
 )
 
 // Global Chart.js defaults — light theme
+ChartJS.defaults.animation.duration = 600
+ChartJS.defaults.animation.easing   = 'easeInOutQuart'
 ChartJS.defaults.color           = '#475569'
 ChartJS.defaults.borderColor     = 'rgba(0,0,0,0.07)'
 ChartJS.defaults.font.family     = 'Inter, system-ui, sans-serif'

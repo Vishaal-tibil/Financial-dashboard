@@ -1,6 +1,6 @@
 import KpiCard from './KpiCard'
 import { useApp } from '../../context/AppContext'
-import { fyLabel } from '../../utils/fy'
+import { fyLabel, parseQLabel } from '../../utils/fy'
 
 const KPI_DEF = [
   { key: 'rev_growth',    label: 'Revenue Growth (YoY)', unit: '%',    tsKey: 'sales',         higherBetter: true,  computed: true },
@@ -11,7 +11,16 @@ const KPI_DEF = [
   { key: 'ccc',           label: 'Cash Conv. Cycle',     unit: 'days', tsKey: 'ccc',           higherBetter: false },
 ]
 
-// +1 improved, -1 worsened, 0 flat
+// Quarterly KPI set — only metrics available at quarter granularity
+const Q_KPI_DEF = [
+  { key: 'q_sales',     label: 'Revenue',          unit: 'cr', tsKey: 'q_sales', higherBetter: true },
+  { key: 'q_opm',       label: 'OPM',              unit: '%',  tsKey: 'q_opm',   higherBetter: true },
+  { key: 'q_op',        label: 'Operating Profit', unit: 'cr', tsKey: 'q_op',    higherBetter: true },
+  { key: 'q_net',       label: 'Net Profit',       unit: 'cr', tsKey: 'q_net',   higherBetter: true },
+  { key: 'q_sales_qoq', label: 'QoQ Growth',       unit: '%',  higherBetter: true, computed: true },
+  { key: 'q_sales_yoy', label: 'YoY Growth',       unit: '%',  higherBetter: true, computed: true },
+]
+
 function trend(prev, curr, higherBetter) {
   if (prev == null || curr == null) return 0
   const delta = curr - prev
@@ -20,21 +29,21 @@ function trend(prev, curr, higherBetter) {
 }
 
 export default function KpiRow() {
-  const { companies, primaryCompany, metrics, selectedYears, selectedFY } = useApp()
+  const { companies, primaryCompany, metrics, selectedYears, selectedFY, selectedQuarter } = useApp()
 
   const primary    = companies.find(c => c.name === primaryCompany) || {}
   const primaryMet = metrics[primaryCompany] || {}
   const yrs        = primaryMet.years || []
+  const qLabels    = primaryMet.q_labels || []
 
-  // Resolve value + trend for a KPI at the active filter
+  // Resolve value + trend for an annual KPI at the active filter
   function resolve(def) {
     if (selectedFY) {
-      const idx  = yrs.indexOf(selectedFY)
+      const idx = yrs.indexOf(selectedFY)
       if (idx === -1) return { value: null, dir: 0 }
 
       let value
       if (def.computed) {
-        // YoY revenue growth
         const s = primaryMet.sales || []
         value = (idx > 0 && s[idx] != null && s[idx - 1] != null && s[idx - 1] !== 0)
           ? ((s[idx] - s[idx - 1]) / s[idx - 1]) * 100
@@ -44,13 +53,10 @@ export default function KpiRow() {
         value = ts[idx] ?? null
       }
 
-      // Trend: compare to previous year
       let dir = 0
       if (idx > 0) {
         const ts = primaryMet[def.tsKey] || []
-        dir = def.computed
-          ? 0   // rev_growth vs prev-rev_growth is confusing, skip trend arrow
-          : trend(ts[idx - 1], ts[idx], def.higherBetter)
+        dir = def.computed ? 0 : trend(ts[idx - 1], ts[idx], def.higherBetter)
       }
       return { value, dir }
     }
@@ -59,7 +65,6 @@ export default function KpiRow() {
     const windowYears = yrs.slice(-selectedYears)
     const windowIdxs  = windowYears.map(y => yrs.indexOf(y)).filter(i => i !== -1)
 
-    // Last non-null value in window
     function lastNonNull(ts) {
       for (let i = windowIdxs.length - 1; i >= 0; i--) {
         const v = ts[windowIdxs[i]]
@@ -69,7 +74,6 @@ export default function KpiRow() {
     }
 
     if (def.computed) {
-      // YoY growth from companies snapshot
       return { value: primary[def.key] ?? null, dir: 0 }
     }
 
@@ -79,18 +83,60 @@ export default function KpiRow() {
     return { value: val, dir: trend(prevVal, val, def.higherBetter) }
   }
 
-  // Rank comes from companies snapshot (always latest year)
-  const label = selectedFY ? fyLabel(selectedFY) : null
+  // Find the index in q_labels that matches a given fyEndYear + quarter number
+  function findQIdx(fyEndYear, quarter) {
+    return qLabels.findIndex(lbl => {
+      const p = parseQLabel(lbl)
+      return p.fyEndYear === fyEndYear && p.quarter === quarter
+    })
+  }
+
+  // Resolve value + trend for a quarterly KPI
+  function resolveQuarterly(def) {
+    const qi = findQIdx(selectedFY, selectedQuarter)
+    if (qi === -1) return { value: null, dir: 0 }
+
+    if (def.key === 'q_sales_qoq') {
+      const s = primaryMet.q_sales || []
+      if (qi === 0 || s[qi] == null || s[qi - 1] == null || s[qi - 1] === 0)
+        return { value: null, dir: 0 }
+      const v = ((s[qi] - s[qi - 1]) / s[qi - 1]) * 100
+      return { value: v, dir: v > 0.5 ? 1 : v < -0.5 ? -1 : 0 }
+    }
+
+    if (def.key === 'q_sales_yoy') {
+      const s      = primaryMet.q_sales || []
+      const prevQi = findQIdx(selectedFY - 1, selectedQuarter)
+      if (prevQi === -1 || s[qi] == null || s[prevQi] == null || s[prevQi] === 0)
+        return { value: null, dir: 0 }
+      const v = ((s[qi] - s[prevQi]) / s[prevQi]) * 100
+      return { value: v, dir: v > 0.5 ? 1 : v < -0.5 ? -1 : 0 }
+    }
+
+    const ts    = primaryMet[def.tsKey] || []
+    const value = ts[qi] ?? null
+    const dir   = (qi > 0 && ts[qi] != null && ts[qi - 1] != null)
+      ? trend(ts[qi - 1], ts[qi], def.higherBetter)
+      : 0
+    return { value, dir }
+  }
+
+  const inQuarterMode = !!(selectedFY && selectedQuarter)
+  const activeDef     = inQuarterMode ? Q_KPI_DEF : KPI_DEF
+
+  const periodLabel = inQuarterMode
+    ? `Q${selectedQuarter} ${fyLabel(selectedFY)}`
+    : selectedFY ? fyLabel(selectedFY) : null
 
   return (
     <div className="kpi-row">
-      {KPI_DEF.map(def => {
-        const { value, dir } = resolve(def)
-        const r = selectedFY ? null : primary.ranks?.[def.key]
+      {activeDef.map(def => {
+        const { value, dir } = inQuarterMode ? resolveQuarterly(def) : resolve(def)
+        const r = !selectedFY ? primary.ranks?.[def.key] : null
         return (
           <KpiCard
             key={def.key}
-            label={def.label + (label ? ` — ${label}` : ' (TTM)')}
+            label={def.label + (periodLabel ? ` — ${periodLabel}` : ' (TTM)')}
             value={value}
             unit={def.unit}
             rank={r?.rank}
