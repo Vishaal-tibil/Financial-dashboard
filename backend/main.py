@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from routes import upload, data, ai
+from routes import upload, data, ai, auth
 
 # Seed Excel files directory.
 # Override with SEED_DIR env var (e.g. /seed when running in Docker).
@@ -112,6 +112,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router,   prefix="/api")
 app.include_router(upload.router, prefix="/api")
 app.include_router(data.router,   prefix="/api")
 app.include_router(ai.router,     prefix="/api")

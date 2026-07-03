@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   LayoutDashboard, BarChart2, Activity, TrendingUp, Target,
-  ChevronLeft, ChevronRight, Layers,
+  ChevronLeft, ChevronRight, Layers, LogOut,
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 
@@ -16,7 +16,7 @@ const NAV = [
 
 const STUDIO_ITEM = { id: 'insight-studio', label: 'Insight Studio', icon: Layers, page: 'insight-studio' }
 
-export default function Sidebar() {
+export default function Sidebar({ authUser, onLogout }) {
   const { activeSection, setActiveSection, navigate, currentPage } = useApp()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -98,8 +98,44 @@ export default function Sidebar() {
 
       </div>
 
-      {/* Collapse toggle */}
+      {/* Bottom: user + logout + collapse */}
       <div className="sidebar-bottom">
+        {/* Logged-in user */}
+        {!collapsed && authUser && (
+          <div style={{
+            padding: '6px 14px 4px',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <span style={{
+              width: 20, height: 20, borderRadius: '50%',
+              background: 'var(--accent)', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 9, fontWeight: 700, flexShrink: 0,
+            }}>
+              {authUser[0].toUpperCase()}
+            </span>
+            {authUser}
+          </div>
+        )}
+
+        {/* Logout */}
+        {onLogout && (
+          <div
+            className="nav-item"
+            onClick={onLogout}
+            title={collapsed ? 'Sign out' : undefined}
+            style={{ color: 'var(--red)', opacity: 0.75 }}
+          >
+            <LogOut />
+            {!collapsed && <span className="nav-label">Sign out</span>}
+          </div>
+        )}
+
+        {/* Collapse toggle */}
         <div className="nav-item" onClick={() => setCollapsed(c => !c)} title={collapsed ? 'Expand' : 'Collapse'}>
           {collapsed ? <ChevronRight /> : <ChevronLeft />}
           {!collapsed && <span className="nav-label">Collapse</span>}

@@ -11,19 +11,20 @@ import App from './App.jsx'
 import './styles/typography.css'
 import './styles/globals.css'
 
-// In production (Firebase Hosting), VITE_API_URL is set to the EC2 backend URL.
-// Intercepts /api/* fetches and prepends the full EC2 origin so the built frontend
-// reaches the EC2 instance. In development this env var is unset, so Vite's proxy
-// handles /api/* as usual — no code change needed in any component.
-const _API_BASE = import.meta.env.VITE_API_URL || ''
-if (_API_BASE) {
-  const _origFetch = window.fetch.bind(window)
-  window.fetch = (input, init) => {
-    if (typeof input === 'string' && input.startsWith('/api')) {
-      return _origFetch(_API_BASE + input, init)
-    }
-    return _origFetch(input, init)
+// Intercepts all /api/* fetches to:
+//   1. Prepend EC2 base URL in production (VITE_API_URL set at build time)
+//   2. Attach Authorization: Bearer <token> from localStorage when a session exists
+const _API_BASE   = import.meta.env.VITE_API_URL || ''
+const _origFetch  = window.fetch.bind(window)
+window.fetch = (input, init) => {
+  if (typeof input === 'string' && input.startsWith('/api')) {
+    const token = localStorage.getItem('fd_token')
+    const options = token && !init?.headers?.Authorization
+      ? { ...init, headers: { ...(init?.headers || {}), Authorization: `Bearer ${token}` } }
+      : init
+    return _origFetch(_API_BASE + input, options)
   }
+  return _origFetch(input, init)
 }
 
 ChartJS.register(

@@ -7,6 +7,7 @@ import RightPanel    from './components/layout/RightPanel'
 import UploadPage    from './pages/UploadPage'
 import Overview      from './pages/Overview'
 import InsightStudio from './pages/InsightStudio'
+import LoginPage     from './pages/LoginPage'
 
 const PAGE_MAP = {
   upload:            UploadPage,
@@ -35,10 +36,9 @@ function ConnectingScreen() {
 }
 
 function Shell() {
-  const { currentPage, panelOpen } = useApp()
+  const { currentPage, panelOpen, isAuthenticated, logout, authUser } = useApp()
   const health = useHealthScore()
 
-  // Apply / remove theme class on :root so CSS variables cascade throughout the app
   useEffect(() => {
     const el    = document.documentElement
     const tiers = ['theme-thriving', 'theme-stable', 'theme-caution', 'theme-concern']
@@ -47,6 +47,12 @@ function Shell() {
     return () => tiers.forEach(t => el.classList.remove(t))
   }, [health?.tier])
 
+  // Checking auth token
+  if (isAuthenticated === null) return <ConnectingScreen />
+
+  // Not logged in
+  if (!isAuthenticated) return <LoginPage />
+
   if (currentPage === 'connecting') return <ConnectingScreen />
   if (currentPage === 'upload')     return <UploadPage />
 
@@ -54,7 +60,7 @@ function Shell() {
 
   return (
     <div className="app-shell">
-      <Sidebar />
+      <Sidebar authUser={authUser} onLogout={logout} />
       <div className="main-wrapper">
         <TopBar />
         <div className="content-with-panel">

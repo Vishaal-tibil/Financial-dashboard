@@ -19,6 +19,10 @@ export function AppProvider({ children }) {
   const [chatHistory, setChatHistory]             = useState([])
   const [panelOpen, setPanelOpen]                 = useState(false)
 
+  // Auth — null = checking, false = not logged in, true = logged in
+  const [isAuthenticated, setIsAuthenticated]     = useState(null)
+  const [authUser, setAuthUser]                   = useState(null)
+
   const navigate = useCallback((page) => {
     setNavHistory(h => [...h, currentPage])
     setCurrentPage(page)
@@ -30,6 +34,47 @@ export function AppProvider({ children }) {
       setCurrentPage(h[h.length - 1])
       return h.slice(0, -1)
     })
+  }, [])
+
+  const login = useCallback((token, username) => {
+    localStorage.setItem('fd_token', token)
+    setAuthUser(username)
+    setIsAuthenticated(true)
+  }, [])
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('fd_token')
+    setAuthUser(null)
+    setIsAuthenticated(false)
+    setCurrentPage('connecting')
+    setCompanies([])
+    setMetrics({})
+    setMeta(null)
+    setIsDataReady(false)
+  }, [])
+
+  // Verify stored token on mount
+  useEffect(() => {
+    const token = localStorage.getItem('fd_token')
+    if (!token) {
+      setIsAuthenticated(false)
+      return
+    }
+    fetch('/api/auth/verify', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.valid) {
+          setAuthUser(d.username)
+          setIsAuthenticated(true)
+        } else {
+          localStorage.removeItem('fd_token')
+          setIsAuthenticated(false)
+        }
+      })
+      .catch(() => {
+        // Backend unreachable — treat as authenticated; data poll will retry
+        setIsAuthenticated(true)
+      })
   }, [])
 
   const loadData = useCallback(async () => {
@@ -61,7 +106,10 @@ export function AppProvider({ children }) {
     }
   }, [])
 
+  // Start backend polling only after authentication is confirmed
   useEffect(() => {
+    if (!isAuthenticated) return
+
     let alive = true
 
     async function poll() {
@@ -76,9 +124,8 @@ export function AppProvider({ children }) {
           } else {
             if (alive) setCurrentPage('upload')
           }
-          return // stop polling once backend responded
+          return
         } catch {
-          // backend not reachable yet — wait 2s then retry
           await new Promise(res => setTimeout(res, 2000))
         }
       }
@@ -86,7 +133,7 @@ export function AppProvider({ children }) {
 
     poll()
     return () => { alive = false }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AppContext.Provider value={{
@@ -105,6 +152,7 @@ export function AppProvider({ children }) {
       aiInsights,  setAiInsights,
       chatHistory, setChatHistory,
       panelOpen,   setPanelOpen,
+      isAuthenticated, authUser, login, logout,
     }}>
       {children}
     </AppContext.Provider>
