@@ -38,6 +38,20 @@ _SEARCH_KEYWORDS = frozenset([
     'stock price', 'share price', 'market cap', 'press release', 'current',
 ])
 
+# Patterns that are clearly off-topic — catch without burning an API call
+_OFF_TOPIC_PATTERNS = frozenset([
+    'write code', 'write a code', 'write a program', 'write a function',
+    'write a script', 'write a class', 'code for', 'function to', 'algorithm for',
+    'reverse a string', 'sort a list', 'python code', 'javascript', 'typescript',
+    'html', 'css code', 'sql query', 'regex', 'write an essay',
+    'tell me a joke', 'recipe for', 'what is gravity', 'capital of',
+    'translate ', 'poem about', 'story about', 'write a letter',
+])
+
+def _is_off_topic(question: str) -> bool:
+    q = question.lower()
+    return any(p in q for p in _OFF_TOPIC_PATTERNS)
+
 def _needs_web_search(question: str) -> bool:
     q = question.lower()
     return any(k in q for k in _SEARCH_KEYWORDS)
@@ -115,12 +129,30 @@ def _build_system(your_company: Optional[str], competitors: list[str]) -> str:
         if full_ctx else ""
     )
 
+    company_names = ", ".join(
+        ([your_company] if your_company else []) + competitors
+    ) or "the loaded companies"
+
     return (
-        "You are FinBot, an expert financial analyst specialising in Indian industrial "
-        "companies. You have BOTH latest-year KPI snapshots AND 5-year historical time series below. "
-        "Use the historical data to answer trend questions. "
-        "Answer concisely. Cite specific numbers and years. "
-        "Percentages are in % form (e.g. 11.1 means 11.1%). Revenue in ₹ Cr.\n\n"
+        "You are FinBot, a financial analyst assistant embedded in a financial benchmarking dashboard.\n\n"
+        "## STRICT SCOPE RULES — follow these without exception:\n"
+        f"1. You ONLY answer questions about these companies and their business: {company_names}.\n"
+        "2. Allowed topics: financial performance, revenue, margins, ratios, operational metrics, "
+        "competitive positioning, industry trends, recent news/announcements, and strategic outlook "
+        "— all strictly in relation to the loaded companies.\n"
+        "3. If the user asks ANYTHING outside this scope — coding, algorithms, general knowledge, "
+        "science, recipes, jokes, essays, translations, or any other off-topic request — respond with "
+        "exactly this and nothing else:\n"
+        "   \"That's outside my scope. I can only answer questions about the financial performance, "
+        f"competitive benchmarking, and business news of: {company_names}.\"\n"
+        "4. Do NOT apologise at length. Do NOT offer to help with off-topic tasks. Just state the "
+        "scope boundary and stop.\n\n"
+        "## WHEN ANSWERING IN-SCOPE QUESTIONS:\n"
+        "- Cite specific numbers and years from the data provided below.\n"
+        "- Percentages are in % form (e.g. 11.1 means 11.1%). Revenue in ₹ Cr.\n"
+        "- Use historical trends to answer trend questions.\n"
+        "- If the data below doesn't contain the answer, use the web_search tool to find "
+        "company-specific news or facts.\n\n"
         f"[LATEST YEAR KPIs — selected companies]\n{data_block}"
         f"{time_series_section}"
     )
@@ -136,6 +168,16 @@ async def stream_chat(
 
     if not groq_client.has_groq():
         yield {"type": "token", "text": "AI Assistant not configured — add GROQ_API_KEY to FD/.env and restart the backend."}
+        yield {"type": "done"}
+        return
+
+    # Fast path: reject obviously off-topic questions without spending an API call
+    if _is_off_topic(question):
+        names = ", ".join(([your_company] if your_company else []) + competitors) or "the loaded companies"
+        yield {"type": "token", "text": (
+            f"That's outside my scope. I can only answer questions about the financial performance, "
+            f"competitive benchmarking, and business news of: {names}."
+        )}
         yield {"type": "done"}
         return
 

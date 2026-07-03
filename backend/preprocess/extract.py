@@ -200,6 +200,12 @@ def parse_excel(path: str) -> dict:
         if sales_last is not None and ebit_last is not None else None
     )
 
+    # ── Per-year cost breakdown % (aligned to P&L years) ─────────────────────
+    raw_mat_pct    = (raw_mat / safe_sales * 100).round(2)
+    emp_cost_pct   = (emp_cost / safe_sales * 100).round(2)
+    # other_opex residually: ensures raw_mat + emp_cost + other_opex + ebitda = 100
+    other_opex_pct = ((sales - raw_mat.fillna(0) - emp_cost.fillna(0) - ebitda) / safe_sales * 100).round(2).clip(lower=0)
+
     # ── Build list versions ───────────────────────────────────────────────────
     sales_l         = to_list(sales)
     ebitda_margin_l = to_list(ebitda_margin)
@@ -283,6 +289,12 @@ def parse_excel(path: str) -> dict:
         "q_op":          to_list(q_op),
         "q_net":         to_list(q_net),
         "q_opm":         to_list(q_opm),
+        # Per-year cost breakdown % (for FY-filtered waterfall chart)
+        "raw_mat_pct":    to_list(raw_mat_pct),
+        "emp_cost_pct":   to_list(emp_cost_pct),
+        "other_opex_pct": to_list(other_opex_pct),
+        # Capital employed time-series (reindexed to P&L years for FY-filtered quadrant)
+        "cap_employed":   to_list(cap_employ.reindex(years)),
     }
 
 
@@ -382,6 +394,7 @@ def main():
         "fcf", "cfo", "cfo_to_sales", "cfi", "cff", "capex", "prices",
         "pe_ratio", "pb_ratio", "ev_ebitda",
         "q_labels", "q_sales", "q_op", "q_net", "q_opm",
+        "raw_mat_pct", "emp_cost_pct", "other_opex_pct", "cap_employed",
     ]}
 
     out("generating", "Writing JSON files…", pct=85)

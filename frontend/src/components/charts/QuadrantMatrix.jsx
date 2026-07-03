@@ -135,10 +135,24 @@ function generateInsight(visible, xMid, yMid) {
 }
 
 export default function QuadrantMatrix() {
-  const { companies, primaryCompany, selectedCompanies, meta } = useApp()
-  const latestFY     = meta?.latest_year ? fyLabel(meta.latest_year) : 'Latest'
+  const { companies, primaryCompany, selectedCompanies, meta, metrics, selectedFY } = useApp()
+  const latestFY     = selectedFY ? fyLabel(selectedFY) : (meta?.latest_year ? fyLabel(meta.latest_year) : 'Latest')
   const visibleNames = [primaryCompany, ...selectedCompanies].filter(Boolean)
-  const visible      = companies.filter(c => visibleNames.includes(c.name))
+  const baseVisible  = companies.filter(c => visibleNames.includes(c.name))
+
+  // Enrich with FY-specific values when a year filter is active
+  const visible = baseVisible.map(c => {
+    if (!selectedFY) return c
+    const m   = metrics[c.name] || {}
+    const yrs = m.years || []
+    const idx = yrs.indexOf(selectedFY)
+    return {
+      ...c,
+      op_margin:    idx !== -1 ? (m.op_margin?.[idx]    ?? null) : null,
+      cap_employed: idx !== -1 ? (m.cap_employed?.[idx] ?? null) : null,
+      wf_sales:     idx !== -1 ? (m.sales?.[idx]        ?? null) : null,
+    }
+  })
 
   const xVals = visible.map(c => c.cap_employed).filter(v => v != null)
   const yVals = visible.map(c => c.op_margin).filter(v => v != null)
@@ -211,7 +225,7 @@ export default function QuadrantMatrix() {
       {/* Header */}
       <div className="chart-card-header">
         <div>
-          <div className="chart-card-title">Capital Efficiency Matrix <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 10 }}>(TTM)</span></div>
+          <div className="chart-card-title">Capital Efficiency Matrix <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 10 }}>({latestFY})</span></div>
           <div className="chart-card-sub" style={{ marginTop: 2 }}>Profitability vs Capital Employed Efficiency</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>

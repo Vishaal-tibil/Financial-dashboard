@@ -55,8 +55,18 @@ export default function KpiRow() {
 
       let dir = 0
       if (idx > 0) {
-        const ts = primaryMet[def.tsKey] || []
-        dir = def.computed ? 0 : trend(ts[idx - 1], ts[idx], def.higherBetter)
+        if (def.computed) {
+          // rev_growth trend: is growth accelerating (curr YoY > prev YoY)?
+          const s = primaryMet.sales || []
+          const currG = (s[idx] != null && s[idx-1] != null && s[idx-1] !== 0)
+            ? (s[idx] - s[idx-1]) / s[idx-1] * 100 : null
+          const prevG = (idx > 1 && s[idx-1] != null && s[idx-2] != null && s[idx-2] !== 0)
+            ? (s[idx-1] - s[idx-2]) / s[idx-2] * 100 : null
+          dir = trend(prevG, currG, def.higherBetter)
+        } else {
+          const ts = primaryMet[def.tsKey] || []
+          dir = trend(ts[idx - 1], ts[idx], def.higherBetter)
+        }
       }
       return { value, dir }
     }
@@ -74,7 +84,16 @@ export default function KpiRow() {
     }
 
     if (def.computed) {
-      return { value: primary[def.key] ?? null, dir: 0 }
+      // rev_growth trend: compare latest YoY vs previous YoY in the window
+      const s       = primaryMet.sales || []
+      const lastPos = windowIdxs.length - 1
+      const latestI = lastPos >= 0 ? windowIdxs[lastPos]     : -1
+      const prevI   = lastPos >= 1 ? windowIdxs[lastPos - 1] : -1
+      const yoyAt   = i => (i > 0 && s[i] != null && s[i-1] != null && s[i-1] !== 0)
+        ? (s[i] - s[i-1]) / s[i-1] * 100 : null
+      const currG = latestI >= 0 ? yoyAt(latestI) : null
+      const prevG = prevI   >= 0 ? yoyAt(prevI)   : null
+      return { value: primary[def.key] ?? null, dir: trend(prevG, currG, def.higherBetter) }
     }
 
     const ts           = primaryMet[def.tsKey] || []
@@ -121,6 +140,29 @@ export default function KpiRow() {
     return { value, dir }
   }
 
+  // Compute ranking dynamically from metrics for a given FY
+  function computeRanking(def, fy) {
+    const scores = companies.map(c => {
+      const m   = metrics[c.name] || {}
+      const yrs = m.years || []
+      const idx = yrs.indexOf(fy)
+      if (idx === -1) return null
+      let val
+      if (def.computed) {
+        const s = m.sales || []
+        val = (idx > 0 && s[idx] != null && s[idx - 1] != null && s[idx - 1] !== 0)
+          ? ((s[idx] - s[idx - 1]) / s[idx - 1]) * 100 : null
+      } else {
+        val = (m[def.tsKey] || [])[idx] ?? null
+      }
+      return val != null ? { name: c.name, val } : null
+    }).filter(Boolean)
+
+    scores.sort((a, b) => def.higherBetter ? b.val - a.val : a.val - b.val)
+    const rank = scores.findIndex(s => s.name === primaryCompany) + 1
+    return rank > 0 ? { rank, of: scores.length } : null
+  }
+
   const inQuarterMode = !!(selectedFY && selectedQuarter)
   const activeDef     = inQuarterMode ? Q_KPI_DEF : KPI_DEF
 
@@ -132,7 +174,9 @@ export default function KpiRow() {
     <div className="kpi-row">
       {activeDef.map(def => {
         const { value, dir } = inQuarterMode ? resolveQuarterly(def) : resolve(def)
-        const r = !selectedFY ? primary.ranks?.[def.key] : null
+        const r = selectedFY && !inQuarterMode
+          ? computeRanking(def, selectedFY)
+          : !selectedFY ? primary.ranks?.[def.key] : null
         return (
           <KpiCard
             key={def.key}

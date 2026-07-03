@@ -89,12 +89,24 @@ function BarCell({ seg, val, maxVal }) {
 }
 
 export default function EbitdaTable() {
-  const { companies, primaryCompany, selectedCompanies, meta } = useApp()
+  const { companies, primaryCompany, selectedCompanies, meta, metrics, selectedFY } = useApp()
 
   const visibleNames = [primaryCompany, ...selectedCompanies].filter(Boolean)
   const visible      = companies.filter(c => visibleNames.includes(c.name))
 
   const rows = visible.map(c => {
+    if (selectedFY) {
+      const m   = metrics[c.name] || {}
+      const yrs = m.years || []
+      const idx = yrs.indexOf(selectedFY)
+      if (idx === -1 || !m.raw_mat_pct) return null
+      const rawMat  = r1(m.raw_mat_pct?.[idx]    ?? 0)
+      const empCost = r1(m.emp_cost_pct?.[idx]   ?? 0)
+      const ebitda  = r1(m.ebitda_margin?.[idx]  ?? 0)
+      const other   = r1(Math.max(0, 100 - rawMat - empCost - ebitda))
+      const revenue = m.sales?.[idx] ?? null
+      return { name: c.name.split(' ')[0], fullName: c.name, color: c.color, revenue, rawMat, empCost, other, ebitda }
+    }
     if (!c.wf_sales) return null
     const rawMat  = r1((c.wf_raw_mat  / c.wf_sales) * 100)
     const empCost = r1((c.wf_emp_cost / c.wf_sales) * 100)
@@ -103,7 +115,7 @@ export default function EbitdaTable() {
     return { name: c.name.split(' ')[0], fullName: c.name, color: c.color, revenue: c.wf_sales, rawMat, empCost, other, ebitda }
   }).filter(Boolean)
 
-  const latestFY = meta?.latest_year ? fyLabel(meta.latest_year) : 'Latest'
+  const latestFY = selectedFY ? fyLabel(selectedFY) : (meta?.latest_year ? fyLabel(meta.latest_year) : 'Latest')
 
   if (!rows.length) {
     return (
