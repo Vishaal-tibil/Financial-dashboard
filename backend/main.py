@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -12,8 +13,10 @@ from fastapi.staticfiles import StaticFiles
 
 from routes import upload, data, ai
 
-# Seed Excel files live alongside the FD/ folder
-EXCEL_DIR = Path(__file__).parent.parent.parent
+# Seed Excel files directory.
+# Override with SEED_DIR env var (e.g. /seed when running in Docker).
+# Default: three levels up from main.py = the "Financial Dashboard/" folder in local dev.
+EXCEL_DIR = Path(os.environ.get("SEED_DIR", str(Path(__file__).parent.parent.parent)))
 SCRIPT    = Path(__file__).parent / "preprocess" / "extract.py"
 DATA_DIR  = Path(__file__).parent / "data"
 

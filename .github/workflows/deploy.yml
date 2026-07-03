@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, v3]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Required GitHub Secrets (Settings → Secrets → Actions):

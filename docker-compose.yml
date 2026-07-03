@@ -1,0 +1,56 @@
+# Local Docker Compose — runs the backend and serves the pre-built frontend.
+#
+# Prerequisites:
+#   1. Copy .env.example to .env and fill in API keys
+#   2. Place seed Excel files (Carborundum.xlsx etc.) in the directory above FD/ OR
+#      put them in a local "seed/" folder next to this file and update the volume paths
+#   3. Build the frontend:  cd frontend && npm run build
+#
+# Then run:
+#   docker compose up --build
+#
+# Backend:  http://localhost:8000
+# Frontend: http://localhost:8000  (served by FastAPI from frontend/dist)
+#
+# For EC2 without CI/CD, run these same commands on the server after
+# cloning the repo, building the frontend, and creating .env.
+
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fd-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistent data — extracted JSON and uploaded xlsx files
+      - fd_data:/app/data
+      - fd_uploads:/app/uploads
+      # Seed Excel files — mounted from the parent folder (local dev layout)
+      # If your xlsx files are in a different location, update these paths.
+      - ../Carborundum.xlsx:/seed/Carborundum.xlsx:ro
+      - ../Grindwell.xlsx:/seed/Grindwell.xlsx:ro
+      - ../SKF.xlsx:/seed/SKF.xlsx:ro
+      - ../Timken.xlsx:/seed/Timken.xlsx:ro
+      - ../Wendt.xlsx:/seed/Wendt.xlsx:ro
+      # Serve React build without rebuilding the image on every code change
+      - ./frontend/dist:/app/../frontend/dist:ro
+    env_file:
+      - .env
+    environment:
+      # Tell main.py where the seed Excel files are mounted inside the container
+      SEED_DIR: /seed
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/status')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  fd_data:
+  fd_uploads:
